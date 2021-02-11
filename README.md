@@ -3,15 +3,35 @@
 
 # prime-seq
 
-# <img src="Fig1.png" align="center" width="1000" />
-
 This repository contains scripts used for the analysis performed in our
-paper, **prime-seq, a simple, inexpensive, and powerful bulk
-RNA-sequencing protocol for detecting differential expression**
+paper
+
+**prime-seq, a simple, inexpensive, and powerful bulk RNA-sequencing
+protocol for detecting differential expression**
 
 Aleksandar Janjic, Lucas E. Wange, Johannes W. Bagnoli, Johanna Geuder,
 Phong Nguyen, Daniel Richter, Beate Vieth, Christoph Ziegenhain, Binje
 Vick, Ines Hellmann, Wolfgang Enard
+
+# <img src="Fig1.png" align="center" width="1000" />
+
+Study Overview: prime-seq is a simple RNA-seq workflow that goes from
+lysate to sequencing library in no time. We benchmarked it’s performance
+against the MAQC-III study using power analysis and showed that it
+captures know biological differences in a differentiation experiment.
+
+The Data necessary to reproduce this analysis can be found at
+ArrayExpress:
+
+| Accession    | Dataset                |
+| ------------ | ---------------------- |
+| E-MTAB-10140 | Beads\_Columns\_tissue |
+| E-MTAB-10138 | Beads\_Columns\_PBMC   |
+| E-MTAB-10142 | Beads\_Columns\_HEK    |
+| E-MTAB-10141 | gDNA\_priming          |
+| E-MTAB-10139 | UHRR                   |
+| E-MTAB-10133 | iPSC                   |
+| E-MTAB-?     | AML                    |
 
 ## 1\. Figure: RNA isolation
 
