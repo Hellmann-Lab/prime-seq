@@ -1,0 +1,213 @@
+---
+title: "Analysis of Johannes AML Samples for prime-seq"
+output: html_notebook
+---
+
+```{r}
+#########Libraries-----
+library("DESeq2")
+library(tidyverse)
+library("cowplot")
+library("edgeR")
+library("HTSFilter")
+library("vsn")
+library("RColorBrewer")
+library("colorRamps")
+library("ggsci")
+library(readxl)
+
+source("/data/share/htp/prime-seq_Paper/Scripts/custom_functions.R")
+```
+
+
+```{r}
+theme_pub <- theme_bw() + theme(axis.text = element_text(colour="black", size=14), 
+                                axis.title = element_text(colour="black", size=16, face="bold"),
+                                legend.text=element_text(colour="black", size=14),
+                                legend.position="right", 
+                                axis.line.x = element_line(colour = "black"), 
+                                axis.line.y = element_line(colour = "black"),
+                                strip.background=element_blank(), 
+                                strip.text=element_text(size=16))
+theme_set(theme_pub)
+```
+
+```{r}
+# Import Tables----------------------
+fig_path<-"/data/share/htp/prime-seq_Paper/Fig_aml_lowinput/"
+
+RDS<- readRDS(paste0(fig_path,"zUMIs/zUMIs_output/expression/aml_prime.dgecounts.rds"))
+sample_info<- readRDS(paste0(fig_path,"analysis/sample_info.rds"))
+features<- read.table(paste0(fig_path,"zUMIs/zUMIs_output/stats/aml_prime.readspercell.txt"))
+
+
+AMLges_PDX_2016 <- read_excel("AMLges_PDX_2016.xlsx", 
+    col_types = c("text", "text", "text", 
+        "text", "text", "text", "text", "text", 
+        "text", "text", "numeric", "numeric", 
+        "text", "text", "numeric", "numeric", 
+        "text", "text", "text", "text", "numeric", 
+        "date", "numeric", "text", "text", 
+        "numeric", "numeric"))
+
+summary<-inner_join(sample_info,AMLges_PDX_2016,by=c("Sample"="Patienten-Passage")) %>% 
+  summarize(max_passage=max(Passage.x),
+            first=as.Date(min(Beendet)),
+            last=as.Date(max(Beendet)),
+            time_collection=as.numeric(last-first)/365,
+            preped=as.Date(x = "2016-11-15"),
+            min_time_in_freezer=as.numeric(preped-last)/365,
+            max_time_in_freezer=as.numeric(preped-first)/365)
+
+
+```
+
+```{r}
+
+### Adjust count matrix-----
+cnts<- RDS$umicount$exon$all
+
+# get only human genes
+cnts <- cnts[grep("ENSG", row.names(cnts)),]
+
+# kick out the zero rows
+cnts<-cnts[rowSums(cnts)>0,]
+
+# replace Gencode version numbers
+
+cnts<-remove_Geneversion(as.matrix(cnts))
+
+```
+
+```{r}
+### HTSFilter-----
+tmp_filt <- HTSFilter(cnts,conds=sample_info$PDX_line, s.max=50, normalization="DESeq")
+cnts_filt  <- tmp_filt$filteredData
+
+
+#### Lets check UMI and gene distribution
+
+SF_DF<- data.frame("NUM_UMIs"=colSums(cnts_filt), "NUM_GENES"=colSums(cnts_filt>0), "XC"=colnames(cnts_filt))
+
+
+cnts_doublefilt<-cnts_filt[,colSums(cnts_filt)>1.5e5]
+dim(cnts_doublefilt) 
+
+cnts_doublefilt<-cnts_filt[,colSums(cnts_filt>0)>12500]
+```
+
+```{r}
+
+### Normalisation hts-----------------
+###estimate the size factors for each library and normalizte data for plotting normalisation (DESeq2)
+sfs_doublefilt <- DESeq2::estimateSizeFactorsForMatrix(cnts_doublefilt)
+cnts_doublefilt_sfs <- t(t(cnts_doublefilt)/sfs_doublefilt)
+
+
+expMin_doublefilt <- apply (cnts_doublefilt_sfs ,1, function (x){ min(x[x >0]) } )
+cnts_doublefilt_sfs_log2 <- log2(cnts_doublefilt_sfs+expMin_doublefilt)
+cnts_doublefilt_sfs_log2_long <- reshape2::melt(cnts_doublefilt_sfs_log2)
+
+```
+
+# PCA
+
+```{r}
+
+### DESeq2:Variance stabilizing transformation---------------
+#### Additionally the sample info table has to be subsetted accroding to the sample filtering
+sample_info_filt<- sample_info[sample_info$XC %in% colnames(cnts_doublefilt),]
+
+sample_info_filt<- sample_info_filt[match(colnames(cnts_doublefilt),sample_info_filt$XC),]
+
+sample_info_filt<-sample_info_filt %>% 
+  mutate(Karyotype=as.character(Karyotype),
+         Karyotype=case_when(Karyotype=="complex karyotype"~"Complex Karyotype",
+                             Karyotype=="NPM1/FLT3-ITD"~"NPM1/FLT3-ITD",
+                             Karyotype=="not favourable nor adverse"~"Normal",
+                             Karyotype=="CN"~"Copynumber Neutral",
+                             Karyotype=="MLL rearranged"~"MLL Rearranged"))
+
+#### Create a DEseq object
+#are there general consistent responses to treatment?
+dds <- DESeq2::DESeqDataSetFromMatrix(cnts_doublefilt,sample_info_filt,design = ~PDX_line+Passage_fac)
+
+####calculate size factors
+dds <- estimateSizeFactors (dds)
+sizeFactors (dds)
+#### calculate dispersions
+dds <- estimateDispersions (dds)
+
+#### calculate the variance stabilizing normalization
+vsd <- varianceStabilizingTransformation(dds)
+
+#### extract a matrix of normalized counts from the S4 object vsd
+vsdMat <- assay (vsd)
+
+```
+
+```{r}
+
+numgenes <- nrow(vsd@assays)
+data <- plotPCA2(vsd, intgroup = c("Karyotype","PDX_line"), returnData = TRUE,ntop = numgenes)
+percentVar <- round(data$percentVar*100,digits = 1)
+AML_KT_plot <- ggplot(data = data$PCA_df, aes(PC1, PC2, color = Karyotype)) +
+  #scale_color_gradient2(low="green", mid="orange", high="red", midpoint = 5)+
+  geom_point(size = 2) +
+  xlab(paste0("PC1: ", percentVar[1], "% variance")) +
+  ylab(paste0("PC2: ", percentVar[2], "% variance")) +
+  coord_fixed() +
+  labs(color = "", silent = F) +
+  scale_colour_npg()+
+  theme(legend.position = "bottom")+
+  guides(colour = guide_legend(nrow = 3))
+
+AML_KT_plot
+
+AML_PT_plot <- ggplot(data = data$PCA_df, aes(PC1, PC2, color = PDX_line)) +
+  #scale_color_gradient2(low="green", mid="orange", high="red", midpoint = 5)+
+  geom_point(size = 2) +
+  xlab(paste0("PC1: ", percentVar[1], "% variance")) +
+  ylab(paste0("PC2: ", percentVar[2], "% variance")) +
+  coord_fixed() +
+  labs(color = "", silent = F) +
+  scale_colour_futurama()+
+  theme(legend.position = "bottom")
+
+AML_PT_plot
+
+p.fig<-plot_grid(AML_KT_plot,AML_PT_plot)
+
+ggsave(p.fig,filename = paste0(fig_path,"Fig5_AML.pdf"),
+       device = "pdf",
+       units = "mm",
+       width = 300,
+       height = 100)
+```
+
+```{r}
+## calculate LFCs for powsim
+
+info_sub<-subset(sample_info_filt,Karyotype%in% c("Normal","MLL Rearranged"))
+
+counts_sub<-cnts_doublefilt[,info_sub$XC]
+
+dds <- DESeq2::DESeqDataSetFromMatrix(counts_sub,info_sub,design = ~Karyotype)
+
+dds<-DESeq(dds)
+
+lfcs<-as.data.frame(results(dds))
+
+saveRDS(lfcs,"/data/share/htp/prime-seq_Paper/Fig_aml_lowinput/analysis/Normal_vs_MLL_rearranged.rds")
+
+## between passages
+
+dds <- DESeq2::DESeqDataSetFromMatrix(cnts_doublefilt,sample_info_filt,design = ~PDX_line+Passage_bin)
+
+dds<-DESeq(dds)
+
+lfcs<-as.data.frame(results(dds))
+
+saveRDS(lfcs,"/data/share/htp/prime-seq_Paper/Fig_aml_lowinput/analysis/Passage_bins_lfcs.rds")
+```
+

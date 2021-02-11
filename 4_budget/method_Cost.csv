@@ -1,0 +1,36 @@
+Type,Cost,Method
+Kits,3964,Illumina Stranded
+Indices,157.75,Illumina Stranded
+Reagents,347.01864,Illumina Stranded
+Consumables,136.9233,Illumina Stranded
+QC,62.96,Illumina Stranded
+Kits,4261,TruSeq Stranded
+Indices,128.25,TruSeq Stranded
+Reagents,1083.0492,TruSeq Stranded
+Consumables,136.9074,TruSeq Stranded
+QC,62.96,TruSeq Stranded
+Kits,7500,TruSeq
+Indices,0,TruSeq
+Reagents,1412.984,TruSeq
+Consumables,204.9255,TruSeq
+QC,62.96,TruSeq
+Kits,9539.3678,SMART-Seq v4
+Indices,0,SMART-Seq v4
+Reagents,101.49502,SMART-Seq v4
+Consumables,53.0559,SMART-Seq v4
+QC,62.96,SMART-Seq v4
+Kits,15623.3678,SMARTer Stranded Total RNA
+Indices,0,SMARTer Stranded Total RNA
+Reagents,185.31794,SMARTer Stranded Total RNA
+Consumables,75.7744,SMARTer Stranded Total RNA
+QC,62.96,SMARTer Stranded Total RNA
+Kits,6.083333333,prime-seq
+Indices,1.222107835,prime-seq
+Reagents,54.56523507,prime-seq
+Consumables,27.4877,prime-seq
+QC,62.96,prime-seq
+Kits,33.11841458,brb-seq
+Indices,30.48736842,brb-seq
+Reagents,172.4646533,brb-seq
+Consumables,28.8477,brb-seq
+QC,62.96,brb-seq

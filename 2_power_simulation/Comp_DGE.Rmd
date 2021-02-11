@@ -1,0 +1,240 @@
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE, warning = FALSE, message = FALSE)
+```
+##Purpose: 
+Figure 3 --  DGE Analysis prime/TruSeq
+
+#Protocol: 
+
+###1. Load the following packages:
+
+```{r packages}
+library(tidyverse)
+library(ggsignif)
+library(ggrepel)
+library(edgeR)
+library(genefilter)
+library(grid)
+library(gridExtra)
+library(ggsci)
+library(UpSetR)
+library(cowplot)
+library(Seurat)
+library(DESeq2)
+library(biomaRt)
+library(EnhancedVolcano)
+
+```
+
+###2. Load following functions:
+
+
+```{r functions}
+## all necessary custom functions are in the following script
+source("/data/share/htp/prime-seq_Paper/Scripts/custom_functions.R")
+#prevent scientific notation
+options(scipen=999)
+
+theme_pub <- theme_bw() + theme(
+                                     plot.title = element_text(hjust = 0.5, size=18, face="bold"),
+                                     axis.text = element_text(colour="black", size=14), 
+                                     axis.title=element_text(size=16,face="bold"), 
+                                     legend.text=element_text(size=14),
+                                     legend.position="right",
+                                     axis.line.x = element_line(colour = "black"), 
+                                     axis.line.y = element_line(colour = "black"),
+                                     strip.background=element_blank(), 
+                                     strip.text=element_text(size=16))  
+
+fig_path<-"/data/share/htp/prime-seq_Paper/Fig_maqc_comparison/"
+```
+
+
+###4. tru vs prime-seq
+```{r tru_vs_prime}
+counts_prime <- readRDS(paste0(fig_path,"/zUMIs/prime-seq/zUMIs_output/expression/prime-seq.dgecounts.rds"))
+counts_tru <- readRDS(paste0(fig_path,"/zUMIs/SEQC_PE/zUMIs_output/expression/SEQC_PE.dgecounts.rds"))
+
+inf <- read.csv(paste0(fig_path,"/sample_info.csv"), header = T, stringsAsFactors = F)
+
+
+##subset data
+#inex
+inex_prime <- as.matrix(counts_prime$readcount$inex$downsampling$downsampled_10000000) %>% remove_Geneversion()
+inex_tru <- as.matrix(counts_tru$readcount$inex$downsampling$downsampled_10000000) %>% remove_Geneversion()
+
+#combine count tables
+inex <- merge(inex_prime, inex_tru, by = "row.names", all = TRUE)
+inex[is.na(inex)] <- 0
+rownames(inex) <- inex[,1]
+inex$Row.names <- NULL
+#remove ERCCs
+inex <- inex[grep("ERCC", row.names(inex), invert = TRUE) ,]
+inex <- inex[whichgenes_reproducible(exprtable = inex,exprcutoff = 5,reproducecutoff = 0.24),]
+
+##DESeq2
+des <- DESeqDataSetFromMatrix( countData = inex,
+                               colData = inf,
+                               design = ~ 0 + Method)
+des <- DESeq(des, test = "Wald")
+
+tru_vs_prime <- results(des, contrast = c("Method", "tru", "prime"), alpha = 0.05)
+tru_vs_prime <- na.omit(tru_vs_prime)
+summary(tru_vs_prime)
+
+tru_vs_prime_a <- as.data.frame(tru_vs_prime)
+
+table(abs(tru_vs_prime_a$log2FoldChange)>1 &tru_vs_prime_a$padj<0.05)
+
+plot(density(tru_vs_prime_a$log2FoldChange))
+
+saveRDS(tru_vs_prime_a,"/data/share/htp/prime-seq_Paper/Fig_maqc_comparison/Analysis/UHRR_Comparison/tru_vs_prime_lfcs.rds")
+
+##volcano plot
+# create custom key-value pairs for 'high', 'low', 'mid' expression by fold-change
+# set the base colour as 'black'
+keyvals <- rep('black', nrow(tru_vs_prime))
+
+# set the base name/label as 'Neither'
+names(keyvals) <- rep('Neither', nrow(tru_vs_prime))
+
+# modify keyvals for variables with fold change > 1
+keyvals[which((tru_vs_prime$log2FoldChange > 1) & (tru_vs_prime$padj < 10e-6))] <- 'gray70'
+names(keyvals)[which((tru_vs_prime$log2FoldChange > 1) & (tru_vs_prime$padj < 10e-6))] <- 'Upregulated in TruSeq'
+
+# modify keyvals for variables with fold change < -1
+keyvals[which((tru_vs_prime$log2FoldChange < -1) & (tru_vs_prime$padj < 10e-6))] <- '#008080'
+names(keyvals)[which((tru_vs_prime$log2FoldChange < -1) & (tru_vs_prime$padj < 10e-6))] <- 'Upregulated in prime-seq'
+
+unique(names(keyvals))
+Fig3_volcano <- EnhancedVolcano(tru_vs_prime,
+    lab = rownames(tru_vs_prime),
+    selectLab = "",
+    x = 'log2FoldChange',
+    y = 'padj',
+    xlab = bquote(~Log[2]~ 'fold change'),
+    ylab = bquote(~-Log[10]~adjusted~italic(P)),
+    pCutoff = 10e-6,
+    FCcutoff = 1,
+    title = "prime-seq vs. TruSeq",
+    subtitle = element_blank(),
+    colCustom = keyvals,
+    colAlpha = 1,
+    legendPosition = "none")
+
+## length and gc
+#df with genes and which cond it is upregulated in
+tru_vs_prime_a$ENSEMBL <- row.names(tru_vs_prime_a)
+tru_vs_prime_a_filt <- tru_vs_prime_a %>% filter(padj >0.05) %>% filter(abs(log2FoldChange) > 2)
+tru_vs_prime_a_tru <- tru_vs_prime_a_filt %>% filter(log2FoldChange > 2)
+tru_vs_prime_a_prime <- tru_vs_prime_a_filt %>% filter(log2FoldChange < -2)
+
+tru_vs_prime_a_tru$Upregulated <- "TruSeq"
+tru_vs_prime_a_prime$Upregulated <- "prime-seq"
+
+tru_vs_prime_a_filt <- bind_rows(tru_vs_prime_a_tru, tru_vs_prime_a_prime)
+
+#BM length and gc
+ensembl<-useMart("ensembl", 
+                 dataset="hsapiens_gene_ensembl", host="uswest.ensembl.org")
+
+info_L_GC <- getBM(attributes = c("ensembl_gene_id", "external_gene_name",
+                                         "transcript_length",
+                                         "percentage_gene_gc_content"),
+                          filters = "ensembl_gene_id",
+                          values = tru_vs_prime_a_filt$ENSEMBL,
+                          mart = ensembl) %>% 
+  group_by(ensembl_gene_id) %>%
+  summarise(length= round(mean( transcript_length )),
+            gc = round(mean(percentage_gene_gc_content)))
+colnames(info_L_GC) <- c("ENSEMBL", "Length", "GC")
+
+tru_vs_prime_a_filt <- left_join(tru_vs_prime_a_filt, info_L_GC, by = "ENSEMBL")
+
+plot_length_a <- ggplot(tru_vs_prime_a_filt, aes(x=Length, fill = Upregulated)) + 
+  geom_density(alpha=0.5) + 
+  scale_x_continuous(trans = "log10",expand = c(0, 0)) + 
+  ylim(0,1.5)+
+  xlab(bquote(~Log[10]~length)) +
+  theme_pub+
+  scale_fill_manual(values =c("#008080","gray70"))+
+  theme(legend.title = element_blank(), 
+        legend.position="none",
+        strip.text.y = element_text(angle = 360)) 
+
+plot_gc_a <- ggplot(tru_vs_prime_a_filt, aes(x=GC, fill = Upregulated)) + 
+  geom_density(alpha=0.5) + 
+  scale_x_continuous(trans = "log10",expand = c(0, 0)) + 
+  ylim(0,10)+
+  xlab("Percent GC Content") +
+  theme_pub+
+  scale_fill_manual(values =c("#008080","gray70"))+
+  theme(legend.title = element_blank(), 
+        legend.position="bottom",
+        strip.text.y = element_text(angle = 360)) 
+
+
+```
+
+
+
+###7. Figures
+```{r}
+
+Fig3_density <- cowplot::plot_grid(plot_length_a, plot_gc_a,
+  ncol = 1,
+  nrow = 2,
+  rel_heights = c(5,6)
+)
+
+```
+
+###8. Save
+
+```{r}
+
+ggsave(Fig3_density,
+       device = "pdf",
+       path = fig_path,
+       width = 125,
+       height=125,
+       units = "mm",
+       filename = "Fig3_length_gc.pdf"
+       )
+
+ggsave(Fig3_volcano,
+       device = "pdf",
+       path = fig_path,
+       width = 125,
+       height=125,
+       units = "mm",
+       filename = "Fig3_volcano.pdf"
+       )
+
+```
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+

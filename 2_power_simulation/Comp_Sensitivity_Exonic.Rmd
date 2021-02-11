@@ -1,0 +1,229 @@
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE, warning = FALSE, message = FALSE)
+```
+##Purpose: 
+Figure 3 - MAQC Comparison - Sensitivity  plots -- EXONIC ONLY
+
+#Protocol: 
+
+###1. Load the following packages:
+
+```{r packages}
+library(tidyverse)
+library(ggsignif)
+library(ggrepel)
+library(edgeR)
+library(genefilter)
+library(grid)
+library(gridExtra)
+library(ggsci)
+library(UpSetR)
+library(cowplot)
+library(biomaRt)
+
+```
+
+###2. Load following functions:
+
+
+```{r functions}
+### all necessary custom functions are in the following script
+source("/data/share/htp/prime-seq_Paper/Scripts/custom_functions.R")
+
+theme_pub <- theme_bw() + theme(
+                                     plot.title = element_text(hjust = 0.5, size=18, face="bold"),
+                                     axis.text = element_text(colour="black", size=14), 
+                                     axis.title=element_text(size=16,face="bold"), 
+                                     legend.text=element_text(size=14),
+                                     legend.position="right",
+                                     axis.line.x = element_line(colour = "black"), 
+                                     axis.line.y = element_line(colour = "black"),
+                                     strip.background=element_blank(), 
+                                     strip.text=element_text(size=16))  
+
+#prevent scientific notation
+options(scipen=999)
+
+fig_path<-"/data/share/htp/prime-seq_Paper/Fig_maqc_comparison/"
+```
+
+###3. Gtype 
+
+```{r}
+
+gtype_human <- data.frame( species="human", getbiotype("hsapiens_gene_ensembl",species="human"))
+
+```
+
+## Sensitivity
+
+###5. Load Data
+
+
+```{r load_counts}
+counts_prime <- readRDS(paste0(fig_path,"/zUMIs/prime-seq/zUMIs_output/expression/prime-seq.dgecounts.rds"))
+counts_tru <- readRDS(paste0(fig_path,"/zUMIs/SEQC_PE/zUMIs_output/expression/SEQC_PE.dgecounts.rds"))
+
+inf <- read.csv(paste0(fig_path,"/sample_info.csv"), header = T, stringsAsFactors = F)
+
+# subset only coding genes
+coding_genes_prime<-rownames(counts_prime$umicount$exon$all)[!(rownames(counts_prime$umicount$exon$all)%in%gtype_human$Gencode)]
+coding_genes_prime_reads<-rownames(counts_prime$readcount$exon$all)[!(rownames(counts_prime$readcount$exon$all)%in%gtype_human$Gencode)]
+coding_genes_tru<-rownames(counts_tru$readcount$exon$all)[!(rownames(counts_tru$readcount$exon$all)%in%gtype_human$Gencode)]
+
+# include mRNA, ERCCs, lncRNAs, mito, rRNA
+genes_prime<-rownames(counts_prime$umicount$exon$all)
+genes_prime_reads<-rownames(counts_prime$readcount$exon$all)
+genes_tru<-rownames(counts_tru$readcount$exon$all)
+
+# coding
+inex_ds_df_prime <-collapse_downsampled_counts(zumismat = counts_prime,type="exon",frac.samples = 0.25,genes=coding_genes_prime,umi = T)
+inex_ds_df_prime_reads <-collapse_downsampled_counts(zumismat = counts_prime,type="exon",frac.samples = 0.25,genes=coding_genes_prime_reads,umi = F)
+inex_ds_df_tru <-collapse_downsampled_counts(zumismat = counts_tru,type="exon",frac.samples = 0.25,genes=coding_genes_tru, umi = F)
+
+# include non-coding
+inex_ds_df_nc_prime <-collapse_downsampled_counts(zumismat = counts_prime,type="exon",frac.samples = 0.25,genes=genes_prime,umi = T)
+inex_ds_df_nc_prime_reads <-collapse_downsampled_counts(zumismat = counts_prime,type="exon",frac.samples = 0.25,genes=genes_prime_reads,umi = F)
+inex_ds_df_nc_tru <-collapse_downsampled_counts(zumismat = counts_tru,type="exon",frac.samples = 0.25,genes=genes_tru, umi = F)
+
+# plot mean gene expression
+plot_mean_gene_prime <- mean_gene_exp_ex(data = counts_prime, genes = coding_genes_prime_reads, UMI = F)
+plot_mean_gene_tru <- mean_gene_exp_ex(data = counts_tru, genes = coding_genes_tru, UMI = F)
+
+```
+
+
+###6. Number of inex umis/reads and genes per sample per downsampling
+
+```{r sensitivity_exon}
+
+# add data column
+inex_ds_df_prime$data <- "prime-seq (UMIs)"
+inex_ds_df_prime_reads$data <- "prime-seq"
+inex_ds_df_tru$data <- "TruSeq"
+
+inex_ds_df_nc_prime$data <- "prime-seq (UMIs)"
+inex_ds_df_nc_prime_reads$data <- "prime-seq"
+inex_ds_df_nc_tru$data <- "TruSeq"
+
+# add method column
+inex_ds_df_prime$method <- "prime-seq"
+inex_ds_df_prime_reads$method <- "prime-seq"
+inex_ds_df_tru$method <- "TruSeq"
+
+inex_ds_df_nc_prime$method <- "prime-seq"
+inex_ds_df_nc_prime_reads$method <- "prime-seq"
+inex_ds_df_nc_tru$method <- "TruSeq"
+
+# add UMI column
+inex_ds_df_prime$readorumi <- "UMIs"
+inex_ds_df_prime_reads$readorumi <- "reads"
+inex_ds_df_tru$readorumi <- "reads"
+
+inex_ds_df_nc_prime$readorumi <- "UMIs"
+inex_ds_df_nc_prime_reads$readorumi <- "reads"
+inex_ds_df_nc_tru$readorumi <- "reads"
+
+# join df
+ds_df <- bind_rows(inex_ds_df_prime, inex_ds_df_prime_reads, inex_ds_df_tru)
+ds_df_nc <- bind_rows(inex_ds_df_nc_prime, inex_ds_df_nc_prime_reads, inex_ds_df_nc_tru)
+
+
+# main plot -- only coding
+a1 <- ggplot(data = ds_df, aes(x= depth, y = UMIs, color = method, group = data))+
+  geom_smooth(method = "loess", se = F, aes(linetype=readorumi))+
+  geom_point()+
+  xlab("Sequencing Reads (mil.)")+
+  ylab("Mapped Reads / UMIs (mil.)")+
+  ylim(0,30000000)+
+  scale_x_continuous(breaks = c(10000000,20000000,30000000), labels = c(10,20,30))+
+  scale_y_continuous(breaks = c(10000000,20000000,30000000), labels = c(10,20,30))+
+  theme_pub+
+  scale_color_manual(values = c("#008080","gray70"))+
+  theme(legend.position="none")
+
+b1 <- ggplot(data = ds_df, aes(x= depth, y = Genes, color = method, group = data))+
+  geom_smooth(method = "gam", se = F, aes(linetype=readorumi))+
+  geom_point()+
+  xlab("Sequencing Reads (mil.)")+
+  ylab("Genes")+
+  scale_x_continuous(breaks = c(10000000,20000000,30000000), labels = c(10,20,30))+
+  theme_pub+
+  scale_color_manual(values = c("#008080","gray70"))+
+  theme(legend.position="none")
+
+#calculate p values
+ds_df_5 <- ds_df[ds_df$depth == 5000000 & ds_df$readorumi == "reads",] 
+anno_5 <- t.test(ds_df_5[ds_df_5$method == "prime-seq", "Genes"], 
+               ds_df_5[ds_df_5$method == "TruSeq", "Genes"])$p.value
+ds_df_10 <- ds_df[ds_df$depth == 10000000 & ds_df$readorumi == "reads",] 
+anno_10 <- t.test(ds_df_10[ds_df_10$method == "prime-seq", "Genes"], 
+               ds_df_10[ds_df_10$method == "TruSeq", "Genes"])$p.value
+ds_df_20 <- ds_df[ds_df$depth == 20000000 & ds_df$readorumi == "reads",] 
+anno_20 <- t.test(ds_df_20[ds_df_20$method == "prime-seq", "Genes"], 
+               ds_df_20[ds_df_20$method == "TruSeq", "Genes"])$p.value
+
+#subset df for common seq depths
+ds_df_common <-ds_df[ds_df$depth %in% c(5000000, 10000000, 20000000) & ds_df$readorumi == "reads",]
+
+ds_df_common$depth[ds_df_common$depth == "5000000"] <- "5"
+ds_df_common$depth[ds_df_common$depth == "10000000"] <- "10"
+ds_df_common$depth[ds_df_common$depth == "20000000"] <- "20"
+
+ds_df_common$depth <- factor(ds_df_common$depth, levels = c("5", "10", "20"))
+
+annotation_df <- data.frame(depth=c("5", "10", "20"), 
+                            start=c("prime-seq", "prime-seq", "prime-seq"), 
+                            end=c("TruSeq", "TruSeq","TruSeq"),
+                            label=c("***", "***", "***"),
+                            y=c(22400,24000,25500),stringsAsFactors = T)
+
+c1 <- ggplot(data = ds_df_common, aes(x= method, y = Genes))+
+  facet_wrap(~depth, strip.position = "bottom")+
+  geom_boxplot(aes(color = method))+
+  geom_point(aes(color=method))+
+  ylab("Genes")+
+  xlab("Sequencing Reads (mil.)")+
+  ylim(17800,26000)+
+  geom_signif(data=annotation_df, aes(xmin=start, xmax=end, annotations=label, y_position=y),textsize = 5, vjust = 0, manual=TRUE)+
+  theme_pub+
+  scale_color_manual(values = c("#008080","gray70"))+
+  theme(legend.position="none",
+        axis.text.x = element_blank(),
+        axis.ticks.x = element_blank(),
+        axis.line.x = element_blank())
+  
+
+sensitivity_legend <- ggplot(data = ds_df, aes(x= depth, y = Genes, color = method, group = data))+
+  geom_smooth(method = "gam", se = F, aes(linetype=readorumi), color="black")+
+  geom_point(size =2, aes(shape=method))+
+  labs(color = "Method", linetype = "Count")+
+  guides(shape = F)+
+  theme_pub+
+  scale_color_manual(values = c("#008080","gray70"))+
+  theme(legend.position = "bottom")
+
+sensitivity_legend <- cowplot::get_legend(sensitivity_legend)
+
+sensitivity_plots <- cowplot::plot_grid(a1, b1, c1,
+  ncol = 3,
+  nrow = 1
+)
+sensitivity_main <- cowplot::plot_grid(sensitivity_plots, sensitivity_legend,
+  ncol = 1,
+  nrow = 2,
+  rel_heights = c(4,1)
+)
+
+ggsave(sensitivity_main,
+       device = "pdf",
+       path = fig_path,
+       width = 300,
+       height=110,
+       units = "mm",
+       filename = "Fig3a_exon.pdf"
+       )
+
+```
+

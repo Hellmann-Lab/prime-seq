@@ -1,0 +1,28 @@
+---
+output: github_document
+---
+
+<!-- README.md is generated from README.Rmd. Please edit that file -->
+
+```{r, echo = FALSE}
+knitr::opts_chunk$set(
+  collapse = TRUE,
+  comment = "#>",
+  fig.path = "README-"
+)
+```
+
+# `powsimR` <br/> Power analysis for bulk and <br/> single cell RNA-seq experiments <img src="vignettes/powsimR.png" align="right" width="200" />
+
+Please also consult my Github Page of [powsimR](https://bvieth.github.io/powsimR/) made with [pkgdown](http://pkgdown.r-lib.org/index.html)!
+
+## :arrow_double_down: Installation Guide
+
+For the installation, the R package `devtools` is needed.
+
+```{r, echo=T, eval=F, tidy=T}
+install.packages('devtools')
+library(devtools)
+```
+
+I recommend to install first the dependencies manually and then powsimR. If you plan to use MAGIC for imputation, then please follow their [instruction](https://github.com/KrishnaswamyLab/MAGIC) to install the python implementation before installing powsimR.

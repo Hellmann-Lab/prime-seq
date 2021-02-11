@@ -1,0 +1,33 @@
+Samples,Cost,Method
+1,2.8901513228,Column
+6,15.7433688743,Column
+12,34.0293221236,Column
+24,64.8770442473,Column
+48,126.5724884945,Column
+96,249.9633769891,Column
+192,499.1479539782,Column
+288,748.3325309673,Column
+1,0.9148031863,No Incubation
+6,4.4688191178,No Incubation
+12,6.3580382356,No Incubation
+24,8.6096764713,No Incubation
+48,13.1129529425,No Incubation
+96,22.1195058851,No Incubation
+192,42.5354117702,No Incubation
+288,62.9513176553,No Incubation
+1,0.9148031863,Incubation
+6,4.4688191178,Incubation
+12,8.3868382356,Incubation
+24,10.6384764713,Incubation
+48,15.1417529425,Incubation
+96,24.1483058851,Incubation
+192,46.5930117702,Incubation
+288,69.0377176553,Incubation
+1,0.9571046863,Incubation + ProtK
+6,4.7226281178,Incubation + ProtK
+12,9.2838562356,Incubation + ProtK
+24,12.0431124713,Incubation + ProtK
+48,17.5616249425,Incubation + ProtK
+96,28.5986498851,Incubation + ProtK
+192,55.1042997702,Incubation + ProtK
+288,81.6099496553,Incubation + ProtK

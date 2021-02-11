@@ -1,0 +1,315 @@
+---
+title: "Method Correlations"
+output: html_notebook
+---
+
+Supplementary Figure showing correlations of samples within and between groups as boxplot/beeplot.
+
+```{r}
+
+library(ggplot2)
+library(cowplot)
+library(tidyverse)
+library(corrplot)
+library(RColorBrewer)
+library(ggbeeswarm)
+library(UpSetR)
+library(ggplotify)
+
+### all necessary custom functions are in the following scripts
+source("/data/share/htp/prime-seq_Paper/Scripts/custom_functions.R")
+
+theme_pub <- theme_bw() + theme(plot.title = element_text(hjust = 0.5, 
+                                                          size=18, face="bold"),
+                                     axis.text = element_text(colour="black", size=14), 
+                                     axis.title=element_text(size=16,face="bold"), 
+                                     legend.text=element_text(size=14),
+                                     legend.position="right",
+                                     axis.line.x = element_line(colour = "black"), 
+                                     axis.line.y = element_line(colour = "black"),
+                                     strip.background=element_blank(), 
+                                     strip.text=element_text(size=16))  
+theme_set(theme_pub)
+
+
+fig_path<-"/data/share/htp/prime-seq_Paper/Fig_maqc_comparison/"
+
+
+## colours
+
+method_cols<-c("#008080","gray70","#457b9d")
+names(method_cols)<-c("prime-seq","TruSeq","between")
+```
+
+```{r}
+
+## tru_seq
+
+tru_inex<-readRDS("/data/share/htp/prime-seq_Paper/Fig_maqc_comparison/zUMIs/SEQC_PE/zUMIs_output/expression/SEQC_PE.dgecounts.rds")$readcount$inex$downsampling$downsampled_20000000 %>% as.matrix()
+
+tru_ercc<-tru_inex[grep(rownames(tru_inex),pattern="ERCC*"),]
+tru_inex<-tru_inex[grep(rownames(tru_inex),pattern="ERCC*",invert = T),]
+tru_inex<-remove_Geneversion(as.matrix(tru_inex))
+tru_inex<-tru_inex[whichgenes_reproducible(tru_inex,exprcutoff = 20,reproducecutoff = 0.4),]
+tru_inex<-rbind(tru_inex,tru_ercc)
+
+## prime_seq
+
+# Reads
+prime_inex_reads<-readRDS("/data/share/htp/prime-seq_Paper/Fig_maqc_comparison/zUMIs/prime-seq/zUMIs_output/expression/prime-seq.dgecounts.rds")$readcount$inex$downsampling$downsampled_20000000 %>% as.matrix()
+
+
+prime_ercc_reads<-prime_inex_reads[grep(rownames(prime_inex_reads),pattern="ERCC*"),]
+prime_inex_reads<-prime_inex_reads[grep(rownames(prime_inex_reads),pattern="ERCC*",invert = T),]
+prime_inex_reads<-remove_Geneversion(as.matrix(prime_inex_reads))
+prime_inex_reads<-prime_inex_reads[whichgenes_reproducible(prime_inex_reads,exprcutoff = 32,reproducecutoff = 0.25),]
+prime_inex_reads<-rbind(prime_inex_reads,prime_ercc_reads)
+
+
+# UMIs
+prime_inex<-readRDS("/data/share/htp/prime-seq_Paper/Fig_maqc_comparison/zUMIs/prime-seq/zUMIs_output/expression/prime-seq.dgecounts.rds")$umicount$inex$downsampling$downsampled_20000000 %>% as.matrix()
+
+prime_ercc<-prime_inex[grep(rownames(prime_inex),pattern="ERCC*"),]
+prime_inex<-prime_inex[grep(rownames(prime_inex),pattern="ERCC*",invert = T),]
+prime_inex<-remove_Geneversion(as.matrix(prime_inex))
+prime_inex<-prime_inex[whichgenes_reproducible(prime_inex,exprcutoff = 32,reproducecutoff = 0.25),]
+prime_inex<-rbind(prime_inex,prime_ercc)
+
+
+
+
+### Combining dataframes
+comb_inex<-merge(tru_inex,prime_inex,by="row.names",all=F)
+
+comb_inex_reads<-merge(tru_inex,prime_inex_reads,by="row.names",all=F)
+
+
+comb_inex<-comb_inex %>% 
+  column_to_rownames(var = "Row.names") %>% 
+  as.matrix()
+
+
+comb_inex_reads<-comb_inex_reads %>% 
+  column_to_rownames(var = "Row.names") %>% 
+  as.matrix()
+
+
+### make info
+info<-data.frame(BC=c(colnames(prime_inex),colnames(tru_inex)),
+                 method=rep(c("prime-seq","TruSeq"),c(8,5)))
+
+```
+## Normalize
+```{r}
+library(DESeq2)
+des_reads <- DESeqDataSetFromMatrix( countData = comb_inex_reads,
+                               colData = info,
+                               design = ~ 0 + method)
+
+des_reads<-DESeq2::varianceStabilizingTransformation(des_reads)
+
+norm_reads<-assay(des_reads)
+
+library(DESeq2)
+des_umi <- DESeqDataSetFromMatrix( countData = comb_inex,
+                               colData = info,
+                               design = ~ 0 + method)
+
+des_umi<-DESeq2::varianceStabilizingTransformation(des_umi)
+
+norm_umi<-assay(des_umi)
+
+```
+
+## Umis vs. Reads
+```{r}
+
+log_mat<-norm_umi
+
+log_mat_reads<-norm_reads
+
+sampleCorrelation <- cor(log_mat,method = "pearson")
+
+ lt<-sampleCorrelation
+    lt[lower.tri(sampleCorrelation)]<-""
+    diag(lt)<-""
+
+cor_df<-lt %>% 
+  reshape2::melt(value.name = "cor",varnames=c("BC", "BC2")) %>%
+  filter(cor!="") %>% 
+  left_join(info) %>% 
+  select(-BC) %>% 
+  left_join(info,by=c("BC2"="BC")) %>% 
+  select(-BC2) %>% 
+  mutate(type=if_else(method.x==method.y,"within","between"),
+         method_col=if_else(type=="between","between",method.x)) %>% 
+  mutate(cor=as.numeric(cor))
+
+mean_df<-cor_df %>% 
+  group_by(method_col) %>% 
+  summarise(cor=round(median(cor),digits = 2))
+
+sample_cor_umi<-ggplot(cor_df,aes(x=method_col,y=cor,colour=method_col))+
+  geom_beeswarm()+
+  geom_label(data=mean_df,aes(label=cor,y=0.93,fill=method_col),colour="white")+
+  scale_colour_manual(values = method_cols)+
+  scale_fill_manual(values = method_cols)+
+  theme(legend.position = "none")+
+  labs(x="",y=" Correlation coefficient")
+
+
+### correlate mean expression
+
+mean_exp_umi<-log_mat%>% 
+  as.data.frame() %>% 
+  rownames_to_column(var="Gene") %>% 
+  pivot_longer(names_to = "BC",values_to="count",cols=-Gene) %>% 
+  left_join(info) %>% 
+  group_by(method,Gene) %>% 
+  dplyr::summarize(mean_exp=mean(count)) %>% 
+  mutate(spike_in=if_else(Gene %in% grep(Gene,pattern="ERCC*",
+                                         value = T),
+                          "Spike-Ins","Endogenous Genes")) %>% 
+  pivot_wider(names_from = "method",values_from="mean_exp") %>% 
+  as.data.frame()
+  
+
+gene_cor_umi<-ggplot(data=mean_exp_umi,aes(x=`prime-seq`,y=`TruSeq`))+
+  geom_point(alpha=0.4)+
+  geom_smooth(method = "lm",colour="grey50")+
+  ggpubr::stat_cor(aes(fill=spike_in, label=paste(..rr.label..)),
+                   method = "pearson",
+                   geom = "label",
+                   colour="white",
+                   label.x = c(2),
+                   label.y=15)+
+  theme(axis.line.y = element_line(),
+        legend.position="none")+
+    facet_wrap(~spike_in)+
+  scale_fill_manual(values=c("#14213d","#fca311"))+
+  xlab("mean normalized expression prime-seq")+
+  ylab("mean normalized expression TruSeq")+
+  ylim(0,20)+
+  xlim(0,20)
+
+plot_grid(sample_cor_umi,gene_cor_umi,ncol=1)
+```
+
+
+
+## upsetR plot
+```{r}
+
+comb_inex_full<-merge(tru_inex,prime_inex,by="row.names",all=T)
+
+upset_df<-data.frame(prime=rowSums(comb_inex_full[,colnames(comb_inex_full)%in%subset(info,method=="prime-seq")$BC]),
+                        TruSeq=rowSums(comb_inex_full[,colnames(comb_inex_full)%in%subset(info,method=="TruSeq")$BC]),
+                        Gene=rownames(comb_inex_full))
+
+upset_df <- upset_df %>%
+  mutate(prime = ifelse(prime > 0, paste(Gene), NA),
+         TruSeq = ifelse(TruSeq > 0, paste(Gene), NA)) %>%
+  dplyr::select(-Gene) %>%
+  filter_all(any_vars(!is.na(.)))
+
+upset_comp <- upset(fromList(upset_df), order.by = "freq",
+                 mainbar.y.label = "Gene Intersections", 
+                 sets.x.label="Genes per Condition",
+                 main.bar.color = "#457b9d", 
+                 sets.bar.color = "#14213d", 
+                 text.scale = c(2, 2, 2, 2, 2, 2),
+                 point.size = 3.5,show.numbers = F)
+
+upset_comp
+
+
+```
+
+```{r}
+load("/data/share/htp/prime-seq_Paper/Fig_maqc_comparison/Analysis/UHRR_Comparison/estparam_all.Rdata")
+
+Get_Mean_Disp<- function(estParamRes){
+  ..density.. = NULL
+
+  plot_list<-list(meanvsdisp.dat=NULL,meanvsdisp.fdat=NULL,cdisp=NULL)
+  plot_list$meanvsdisp.dat <- data.frame(Mean=estParamRes$Fit$Filtered$meandispfit$model$x[,"x"],
+                               Dispersion=estParamRes$Fit$Filtered$meandispfit$model$y)
+  plot_list$meanvsdisp.fdat <- data.frame(Mean=estParamRes$Fit$Filtered$meandispfit$x,
+                                Dispersion=estParamRes$Fit$Filtered$meandispfit$y,
+                                Upper=estParamRes$Fit$Filtered$meandispfit$upper,
+                                Lower=estParamRes$Fit$Filtered$meandispfit$lower)
+
+  plot_list$cdisp <- log2(estParamRes$Parameters$Filtered$common.dispersion+1)
+
+  return(plot_list)
+}
+
+mv_prime<-Get_Mean_Disp(estparam_gene_prime_inex)
+
+mv_tru<-Get_Mean_Disp(estparam_gene_tru_inex)
+
+meanvsdisp.dat<-rbind(mv_prime$meanvsdisp.dat,mv_tru$meanvsdisp.dat)
+meanvsdisp.dat$method<-rep(c("prime-seq","TruSeq"),times=c(nrow(mv_prime$meanvsdisp.dat),nrow(mv_tru$meanvsdisp.dat)))
+
+meanvsdisp.fdat<-rbind(mv_prime$meanvsdisp.fdat,mv_tru$meanvsdisp.fdat)
+meanvsdisp.fdat$method<-rep(c("prime-seq","TruSeq"),times=c(nrow(mv_prime$meanvsdisp.fdat),nrow(mv_tru$meanvsdisp.fdat)))
+
+cdisp<-c(mv_prime$cdisp,mv_tru$cdisp)
+
+ Fig_mean_disp <- ggplot2::ggplot(data=meanvsdisp.dat,
+                                     ggplot2::aes_(x=quote(Mean), y=quote(Dispersion),col=quote(method))) +
+    ggplot2::geom_point(size=0.5,alpha=0.1) +
+    ggplot2::geom_hline(yintercept = cdisp,
+                        linetype = 2, colour="grey40") +
+    ggplot2::geom_line(data = meanvsdisp.fdat,
+                       ggplot2::aes_(x = quote(Mean), y = quote(Dispersion),col=quote(method)),
+                       linetype=1, size=1.5) +
+    ggplot2::geom_line(data = meanvsdisp.fdat,
+                       ggplot2::aes_(x = quote(Mean), y = quote(Lower),col=quote(method)),
+                       linetype=2, size=1) +
+    ggplot2::geom_line(data = meanvsdisp.fdat,
+                       ggplot2::aes_(x = quote(Mean), y = quote(Upper),col=quote(method)),
+                       linetype=2, size=1) +
+   scale_colour_manual(values=method_cols)+
+   labs(x="Log2 Mean Expression",y="Log2 Dispersion",colour="")+
+   theme(legend.position="bottom")
+ 
+
+Fig_mean_count<-ggplot(data=meanvsdisp.dat,aes(x=Mean))+
+  geom_histogram(aes(fill=method),bins = 100)+
+  scale_fill_manual(values=method_cols)+
+  labs(x="Log2 Mean Expression",y="Number of Genes")+
+  theme(legend.position = "none")+
+  facet_grid(method~.)
+  
+Fig_3B<-plot_grid(Fig_mean_disp,Fig_mean_count,ncol=2,axis="trbl",align="hv")
+
+ 
+```
+
+```{r}
+
+ggsave(Fig_3B,
+       device = "pdf",
+       path = fig_path,
+       width = 200,
+       height=100,
+       units = "mm",
+       filename = "Fig3_B.pdf"
+       )
+
+#  Supplementary including the correlations and the Upset plot
+
+Supp_Fig_Cor<-plot_grid(plot_grid(as.grob(upset_comp),sample_cor_umi,ncol=2),gene_cor_umi,ncol=1)
+
+ggsave(Supp_Fig_Cor,
+       device = "pdf",
+       path = fig_path,
+       width = 300,
+       height=250,
+       units = "mm",
+       filename = "Supp_Fig3_Cor.pdf"
+       )
+
+```
+

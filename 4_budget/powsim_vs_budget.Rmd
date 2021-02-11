@@ -1,0 +1,615 @@
+---
+title: "Power vs. Cost"
+output:
+  pdf_document: default
+  html_notebook: default
+---
+
+Fig.6B 
+
+```{r}
+#Libraries
+library(powsimR)
+library(ggplot2)
+library(stringr)
+library(cowplot)
+library(tibble)
+library(dplyr)
+library(tidyr)
+library(readr)
+library(strex)
+
+### all necessary custom functions are in the following scripts
+source("/data/share/htp/prime-seq_Paper/Scripts/custom_functions.R")
+source("/data/share/htp/prime-seq_Paper/Scripts/powsimR_EstimateSpike_modified.R")
+
+theme_pub <- theme_bw() + theme(plot.title = element_text(hjust = 0.5, 
+                                                          size=18, face="bold"),
+                                     axis.text = element_text(colour="black", size=14), 
+                                     axis.title=element_text(size=16,face="bold"), 
+                                     legend.text=element_text(size=14),
+                                     legend.position="right",
+                                     axis.line.x = element_line(colour = "black"), 
+                                     axis.line.y = element_line(colour = "black"),
+                                     strip.background=element_blank(), 
+                                     strip.text=element_text(size=16))  
+theme_set(theme_pub)
+
+#prevent scientific notation
+options(scipen=999)
+
+fig_path<-"/data/share/htp/prime-seq_Paper/Fig_cost/"
+
+
+## colours
+
+method_cols<-c("#008080","gray70")
+names(method_cols)<-c("prime-seq","TruSeq")
+```
+
+
+```{r}
+
+conv_E_to_D<-500/407.90
+cost_per_10M<-2.75*10*conv_E_to_D
+
+method_Cost <- read_csv("~/htp/prime-seq_Paper/Fig_cost/method_Cost.csv") %>% 
+  filter(Method%in%c("TruSeq Stranded","prime-seq")) %>% 
+  group_by(Method) %>% 
+  summarize(totalE=sum(Cost),
+           perSampleE=totalE/96,
+           totalD=sum(Cost)*conv_E_to_D,
+           perSampleD=totalD/96,
+           perSample_plus_seq=perSampleD+cost_per_10M)
+
+budget_samples_D<-method_Cost %>%
+  left_join(data.frame(Budget=rep(seq(from=300,to=2000,by=100),each=2),
+                       Method=rep(method_Cost$Method))) %>% 
+  mutate(nsamples_seq=floor(Budget/perSample_plus_seq),
+         nsamples=floor(Budget/perSampleD),
+         samples_per_group=floor(nsamples/2),
+         samples_per_group_seq=floor(nsamples_seq/2))
+
+filter(budget_samples_D,Method=="TruSeq Stranded")$samples_per_group %>% 
+  unique()
+
+filter(budget_samples_D,Method=="TruSeq Stranded")$samples_per_group_seq %>% 
+  unique()
+
+samples_tru<-c(2:14)
+
+samples_prime<-filter(budget_samples_D,Method=="prime-seq")$samples_per_group %>% 
+  unique()
+
+samples_prime_seq<-filter(budget_samples_D,Method=="prime-seq")$samples_per_group_seq %>% 
+  unique()
+
+```
+
+## Power Simulations TruSeq
+
+```{r}
+# Run as Job in RStudio
+# 
+# tru_inex<-readRDS("/data/share/htp/prime-seq_Paper/Fig_maqc_comparison/zUMIs/SEQC_PE/zUMIs_output/expression/SEQC_PE.dgecounts.rds")$readcount$inex$downsampling$downsampled_10000000 %>% as.matrix()
+# 
+# 
+# tru_inex<-remove_Geneversion(as.matrix(tru_inex))
+# 
+# # estimation
+# estparam_gene_tru_inex<- estimateParam(countData = tru_inex,Normalisation = "MR",
+#                           RNAseq = "bulk", Protocol = 'Read',
+#                           Distribution = 'NB', 
+#                           GeneFilter = 0.1, SampleFilter = 5,
+#                           sigma = 1.96, NCores = NULL, verbose = TRUE)
+# 
+# 
+# ## setup
+# 
+# p.lfc <- function(x) sample(c(-1.5,1.5), size=x,replace=T)*rgamma(x, shape = 1, rate = 2)
+# 
+# 
+# setupres_tru_inex <- Setup(ngenes = 30000, nsims = 20,
+#                   p.DE = 0.10, pLFC = p.lfc,
+#                   n1 = samples_tru, n2 = samples_tru,
+#                   Thinning = NULL, LibSize = 'equal',
+#                   estParamRes = estparam_gene_tru_inex,
+#                   estSpikeRes = NULL,
+#                   DropGenes = FALSE,
+#                   setup.seed = 5299, verbose = FALSE)
+# 
+# ## simulation
+# simres_tru_inex <- simulateDE(SetupRes = setupres_tru_inex,
+#                      Prefilter = NULL, Imputation = NULL,
+#                      Normalisation = 'MR',
+#                      DEmethod = "limma-voom", DEFilter = FALSE,
+#                      NCores = NULL, verbose = FALSE)
+# 
+# ## evaluate
+# 
+# evalderes_tru_inex<- evaluateDE(simRes = simres_tru_inex,
+#                      alpha.type = 'adjusted',
+#                      MTC = 'BH',
+#                      alpha.nominal = 0.05,
+#                      stratify.by = 'mean',
+#                      filter.by = 'mean',
+#                      strata.filtered = 1,
+#                      target.by = "lfc",
+#                      delta =delta_val,
+#                      Table=F)
+# 
+#save(file = "/data/share/htp/prime-seq_Paper/Fig_cost/Analysis/powsim_vs_budget_tru.Rdata",estparam_gene_tru_inex,setupres_tru_inex,simres_tru_inex,evalderes_tru_inex)
+
+```
+
+## Power Simulations prime-seq
+
+```{r}
+# Run as Job in RStudio
+
+
+# prime_inex<-readRDS("/data/share/htp/prime-seq_Paper/Fig_maqc_comparison/zUMIs/prime-seq/zUMIs_output/expression/prime-seq.dgecounts.rds")$umicount$inex$downsampling$downsampled_10000000 %>% as.matrix()
+# 
+# 
+# prime_inex<-remove_Geneversion(as.matrix(prime_inex))
+# 
+# 
+# # estimation
+# estparam_gene_prime_inex<- estimateParam(countData = prime_inex,Normalisation = "MR",
+#                           RNAseq = "bulk", Protocol = 'UMI',
+#                           Distribution = 'NB', 
+#                           GeneFilter = 0.1, SampleFilter = 5,
+#                           sigma = 1.96, NCores = NULL, verbose = TRUE)
+# 
+# # Setup
+# 
+# p.lfc <- function(x) sample(c(-1.5,1.5), size=x,replace=T)*rgamma(x, shape = 1, rate = 2)
+# 
+# setupres_prime_inex1 <- Setup(ngenes = 30000, nsims = 20,
+#                   p.DE = 0.10, pLFC = p.lfc,
+#                    n1 = samples_prime, n2 = samples_prime,
+#                   Thinning = NULL, LibSize = 'equal',
+#                   estParamRes = estparam_gene_prime_inex,
+#                   estSpikeRes = NULL,
+#                   DropGenes = FALSE,
+#                   setup.seed = 5299, verbose = FALSE)
+# 
+# setupres_prime_inex2 <- Setup(ngenes = 30000, nsims = 20,
+#                   p.DE = 0.10, pLFC = p.lfc,
+#                    n1 = samples_prime_seq, n2 = samples_prime_seq,
+#                   Thinning = NULL, LibSize = 'equal',
+#                   estParamRes = estparam_gene_prime_inex,
+#                   estSpikeRes = NULL,
+#                   DropGenes = FALSE,
+#                   setup.seed = 5299, verbose = FALSE)
+# 
+# 
+# ## simulation
+# 
+# 
+# simres_prime_inex1 <- simulateDE(SetupRes = setupres_prime_inex1,
+#                      Prefilter = NULL, Imputation = NULL,
+#                      Normalisation = 'MR',
+#                      DEmethod = "limma-voom", DEFilter = FALSE,
+#                      NCores = NULL, verbose = FALSE)
+# 
+# simres_prime_inex2 <- simulateDE(SetupRes = setupres_prime_inex2,
+#                      Prefilter = NULL, Imputation = NULL,
+#                      Normalisation = 'MR',
+#                      DEmethod = "limma-voom", DEFilter = FALSE,
+#                      NCores = NULL, verbose = FALSE)
+# 
+# ## evaluate
+# 
+# evalderes_prime_inex1<- evaluateDE(simRes = simres_prime_inex1,
+#                      alpha.type = 'adjusted',
+#                      MTC = 'BH',
+#                      alpha.nominal = 0.05,
+#                      stratify.by = 'mean',
+#                      filter.by = 'mean',
+#                      strata.filtered = 1,
+#                      target.by = "lfc",
+#                      delta =delta_val,
+#                      Table=F)
+# 
+# evalderes_prime_inex2<- evaluateDE(simRes = simres_prime_inex2,
+#                      alpha.type = 'adjusted',
+#                      MTC = 'BH',
+#                      alpha.nominal = 0.05,
+#                      stratify.by = 'mean',
+#                      filter.by = 'mean',
+#                      strata.filtered = 1,
+#                      target.by = "lfc",
+#                      delta =delta_val,
+#                      Table=F)
+# save(file = "powsim_vs_budget_prime.Rdata",estparam_gene_prime_inex,setupres_prime_inex1,setupres_prime_inex2,simres_prime_inex1,simres_prime_inex2,evalderes_prime_inex1,evalderes_prime_inex2)
+
+```
+
+## Load and combine data
+
+```{r}
+load("/data/share/htp/prime-seq_Paper/Fig_cost/Analysis/powsim_vs_budget_tru.Rdata")
+
+load("/data/share/htp/prime-seq_Paper/Fig_cost/Analysis/powsim_vs_budget_prime.Rdata")
+
+df<-getEvalDE_df_marginal(evalderes_prime_inex1,method = "prime-seq",count_type = "inex")
+
+df<-bind_rows(df,getEvalDE_df_marginal(evalderes_prime_inex2,method = "prime-seq",count_type = "inex"))
+
+df<-bind_rows(df,getEvalDE_df_marginal(evalderes_tru_inex,method = "TruSeq",count_type = "inex"))
+
+## FDR and TPR cutoffs
+refval <- data.frame(L1 = c("FDR", "TPR"), ref = c(evalderes_prime_inex1$alpha.nominal, 0.8))
+
+
+df_sub<-subset(df,L1 %in% c("FDR","TPR"))
+
+budget_samples_D[budget_samples_D$Method=="TruSeq Stranded","Method"]<-"TruSeq"
+
+df_sub_lib<-df_sub %>% 
+  separate(col = "Var1",sep = " vs ",into = c("Var1","group2"),remove=T) %>% 
+  mutate(Var1=as.numeric(Var1),
+         group2=NULL) %>% 
+  inner_join(budget_samples_D,
+            by=c("method"="Method","Var1"="samples_per_group")) 
+  
+
+Supp_Fig_pow_budget<-ggplot(data = df_sub_lib, aes(x = factor(Budget),
+                      y = value,
+                      col = method)) +
+  geom_boxplot()+
+  geom_hline(data = refval,aes(yintercept = ref),
+                            linetype="dashed",
+                            color='black')+
+  #geom_label(aes(label=Var1))+
+  scale_colour_manual(values=method_cols)+
+  labs(x = "Budget for lib. prep. (USD)", y = "Rate" , shape="") +
+  scale_y_continuous(labels = scales::percent_format(accuracy = 0.1)) +
+  scale_x_discrete(breaks= seq(from=300,to=1800,by=300)) +
+  facet_grid(L1~.,scales = "free_y")
+
+
+df_sub_seq<-df_sub %>% 
+  separate(col = "Var1",sep = " vs ",into = c("group1","group2"),remove=F) %>% 
+  mutate(Var1=as.numeric(group1),
+         group2=NULL) %>% 
+  inner_join(budget_samples_D,
+            by=c("method"="Method","Var1"="samples_per_group_seq"))
+
+Supp_Fig_pow_budget_seq<-ggplot(data = df_sub_seq, aes(x = factor(Budget),
+                      y = value,
+                      colour = method)) +
+  geom_boxplot()+
+  geom_hline(data = refval,aes(yintercept = ref),
+                            linetype="dashed",
+                            color='black')+
+  #geom_label(aes(labels=V1))+
+  scale_colour_manual(values=method_cols)+
+  labs(x = "Budget for lib. prep. + sequencing (USD)", y = "Rate" , shape="") +
+  scale_y_continuous(labels = scales::percent_format(accuracy = 0.1)) +
+  scale_x_discrete(breaks= seq(from=300,to=1800,by=300)) +
+  facet_grid(L1~.,scales = "free_y")
+
+
+Supp_Fig_6B<-plot_grid(Supp_Fig_pow_budget+theme(legend.position = "bottom"),
+                  Supp_Fig_pow_budget_seq+theme(legend.position = "none"),
+                  labels =c("B",""),
+                  nrow=2,
+                  axis="trbl",
+                  align="hv")
+
+```
+
+##power vs. mean and lfc for different budgets
+## mean
+```{r}
+
+df<-getEvalDE_list_conditional(evalderes_prime_inex1,method = "prime-seq",count_type = "inex")$dat.stratified.long
+
+df<-bind_rows(df,getEvalDE_list_conditional(evalderes_prime_inex2,method = "prime-seq",count_type = "inex")$dat.stratified.long)
+
+df<-bind_rows(df,getEvalDE_list_conditional(evalderes_tru_inex,method = "TruSeq",count_type = "inex")$dat.stratified.long)
+
+refval <- data.frame(L1 = c("FDR", "TPR"), ref = c(evalderes_prime_inex1$alpha.nominal, 0.8))
+
+df_sub<-subset(df,L1 %in% c("FDR","TPR"))
+
+
+df_sub_seq_m<-df_sub %>% 
+  separate(col = "Var2",sep = " vs ",into = c("group1","group2"),remove=F) %>% 
+  mutate(Var2=as.numeric(group1),
+         group1=NULL,
+         group2=NULL) %>% 
+  inner_join(budget_samples_D,
+            by=c("method"="Method","Var2"="samples_per_group_seq"))%>% 
+  filter(Budget%in% c(500,1000,1500,2000)) %>% 
+  group_by(method,count_type) %>% 
+  separate(col = "Var1",sep = ",",into = c("lower","upper"),remove=F) %>% 
+  mutate(lower=as.double(str_extract_numbers(lower,decimals = T,negs = T)),
+         upper=as.double(str_extract_numbers(upper,decimals = T,negs = T)),
+         upper=if_else(is.na(upper),Inf,upper),
+         stratum=1:n()) %>% 
+  ungroup() %>% 
+  group_by(stratum) %>% 
+  mutate(lower=min(lower),
+         upper=max(upper),
+         stratum=paste0(lower,"-",upper))
+
+```
+
+
+```{r}
+
+
+rate_cols<-c("#02401B","#81A88D","#972D15","#ddb967")
+names(rate_cols)<-unique(df_sub_seq_m$Budget)
+
+
+    Fig.mean_pow_budget_seq<-ggplot(data=subset(df_sub_seq_m,L1=="TPR"),
+           aes(x = stratum,
+               y = value,
+               linetype = method,
+               color=factor(Budget))) +
+      stat_summary(aes(x = stratum,
+                       y = value,
+                       group = paste(Var2,method),
+                       color = factor(Budget)),
+                   fun = mean, geom="line") +
+      geom_hline(data = subset(refval,L1=="TPR"),
+                 aes(yintercept = ref),
+                 linetype="dashed",
+                 color='black') +
+      labs(x=paste0("Stratum Log2 Mean Expresion"),y="TPR",colour="Budget in USD\n (Lib. + Seq.)") +
+      scale_y_continuous(labels = scales::percent_format(accuracy = 1)) +
+      scale_color_manual(values=rate_cols)+
+      theme(legend.position = "right",
+            axis.text.x=element_text(angle=60,hjust=1))
+    
+    Fig.mean_fdr_budget_seq<-ggplot(data=subset(df_sub_seq_m,L1=="FDR"),
+           aes(x = stratum,
+               y = value,
+               linetype = method,
+               color=factor(Budget))) +
+      stat_summary(aes(x = stratum,
+                       y = value,
+                       group = paste(Var2,method),
+                       color = factor(Budget)),
+                   fun = mean, geom="line") +
+      geom_hline(data = subset(refval,L1=="FDR"),
+                 aes(yintercept = ref),
+                 linetype="dashed",
+                 color='black') +
+      labs(x=paste0("Stratum Log2 Mean Expresion"),y="FDR",colour="Budget in USD\n (Lib. + Seq.)") +
+      scale_y_continuous(labels = scales::percent_format(accuracy = 1),limits=c(0,0.1)) +
+      scale_color_manual(values=rate_cols)+
+      theme(legend.position = "none",
+            axis.text.x=element_text(angle=60,hjust=1))
+
+
+
+```
+
+```{r}
+
+df_genes<-getEvalDE_list_conditional(evalderes_prime_inex2,method = "prime-seq",count_type = "inex")$dat.genes.calc
+
+df_genes<-bind_rows(df_genes,getEvalDE_list_conditional(evalderes_tru_inex,method = "TruSeq",count_type = "inex")$dat.genes.calc)
+
+df_genes_sum<-df_genes %>% 
+  group_by(method,count_type) %>% 
+  separate(col = "Var1",sep = ",",into = c("lower","upper"),remove=F) %>% 
+  mutate(lower=as.double(str_extract_numbers(lower,decimals = T,negs = T)),
+         upper=as.double(str_extract_numbers(upper,decimals = T,negs = T)),
+         upper=if_else(is.na(upper),Inf,upper),
+         stratum=rep(1:9,each=2)) %>% 
+  group_by(stratum) %>% 
+  mutate(lower=min(lower),
+         upper=max(upper),
+         stratum=paste0(lower,"-",upper))
+
+ngenes_mean<-ggplot(subset(df_genes_sum,lower>0),aes(x=stratum,y=Expectation,fill=L1,group=method))+
+  geom_col()+
+  facet_grid(method~.)+
+  theme(axis.text.x=element_text(angle=60,hjust=1))+
+  labs(x="Stratum Log2 Mean Expression",y="Genes",fill="")+
+  scale_fill_manual(values=c("#e07a5f","#14213d"))
+
+```
+
+
+
+## LFC
+####Stratify by Log2 fold change
+```{r}
+
+delta_val<-1
+
+evalderes_tru_inex_lfc<- evaluateDE2(simRes = simres_tru_inex,
+                     alpha.type = 'adjusted',
+                     MTC = 'BH',
+                     alpha.nominal = 0.05,
+                     stratify.by = 'lfc_abs',
+                     filter.by = 'mean',
+                     strata.filtered = 2,
+                     target.by = "lfc",
+                     delta =delta_val,
+                     Table = F)
+
+
+evalderes_prime_inex1_lfc<-evaluateDE2(simRes = simres_prime_inex1,
+                     alpha.type = 'adjusted',
+                     MTC = 'BH',
+                     alpha.nominal = 0.05,
+                     stratify.by = 'lfc_abs',
+                     filter.by = 'mean',
+                     strata.filtered = 2,
+                     target.by = "lfc",
+                     delta =delta_val,
+                     Table = F)
+
+
+evalderes_prime_inex2_lfc<- evaluateDE2(simRes = simres_prime_inex2,
+                     alpha.type = 'adjusted',
+                     MTC = 'BH',
+                     alpha.nominal = 0.05,
+                     stratify.by = 'lfc_abs',
+                     filter.by = 'mean',
+                     strata.filtered = 2,
+                     target.by = "lfc",
+                     delta =delta_val,
+                     Table = F)
+
+
+```
+
+
+```{r}
+
+
+df<-getEvalDE_list_conditional(evalderes_prime_inex1_lfc,method = "prime-seq",count_type = "inex")$dat.stratified.long
+
+df<-bind_rows(df,getEvalDE_list_conditional(evalderes_prime_inex2_lfc,method = "prime-seq",count_type = "inex")$dat.stratified.long)
+
+df<-bind_rows(df,getEvalDE_list_conditional(evalderes_tru_inex_lfc,method = "TruSeq",count_type = "inex")$dat.stratified.long)
+
+refval <- data.frame(L1 = c("FDR", "TPR"), ref = c(evalderes_prime_inex1$alpha.nominal, 0.8))
+
+df_sub<-subset(df,L1 %in% c("FDR","TPR"))
+
+
+
+df_sub_seq_lfc<-df_sub %>% 
+  separate(col = "Var2",sep = " vs ",into = c("group1","group2"),remove=F) %>% 
+  mutate(Var2=as.numeric(group1),
+         group1=NULL,
+         group2=NULL) %>% 
+  inner_join(budget_samples_D,
+            by=c("method"="Method","Var2"="samples_per_group_seq"))%>% 
+  filter(Budget%in% c(500,1000,1500,2000)) %>% 
+  separate(col = "Var1",sep = ",",into = c("lower","upper"),remove=F) %>% 
+  mutate(lower=as.double(str_extract_numbers(lower,decimals = T,negs = T)),
+         upper=as.double(str_extract_numbers(upper,decimals = T,negs = T)),
+         upper=if_else(is.na(upper),Inf,upper),
+         stratum=1:n()) %>% 
+  ungroup() %>% 
+  group_by(stratum) %>% 
+  mutate(lower=min(lower),
+         upper=max(upper),
+         stratum=paste0(lower,"-",upper)) %>% 
+  mutate(Var2=sapply(str_extract_numbers(as.character(Var2)),function(x) x[1]))
+
+
+
+```
+
+
+```{r}
+
+Fig.lfc_pow_budget<-ggplot(data=subset(df_sub_seq_lfc,L1=="TPR"),
+         aes(x = stratum,
+             y = value,
+             linetype = method,
+             color=factor(Budget))) +
+    stat_summary(aes(x = stratum,
+                     y = value,
+                     group = paste(method,Budget),
+                     color = factor(Budget)),
+                 fun = mean, geom="line") +
+    geom_hline(data = subset(refval,L1=="TPR"),
+               aes(yintercept = ref),
+               linetype="dashed",
+               color='black') +
+    scale_y_continuous(labels = scales::percent_format(accuracy = 1)) +
+    scale_color_manual(values=rate_cols)+
+    labs(x=paste0("Stratum absolute Log2 Fold Change"),y="TPR",colour="Budget in USD\n (Lib. + Seq.)",linetype="")+
+    theme(legend.box = "vertical",legend.position = "none",
+          axis.text.x=element_text(angle=60,hjust=1))
+
+    
+  Fig.lfc_fdr_budget<-ggplot(data=subset(df_sub_seq_lfc,L1=="FDR"),
+         aes(x = stratum,
+             y = value,
+             linetype = method,
+             color=factor(Budget))) +
+    stat_summary(aes(x = stratum,
+                     y = value,
+                     group = paste(method,Budget),
+                     color = factor(Budget)),
+                 fun = mean, geom="line") +
+    geom_hline(data = subset(refval,L1=="FDR"),
+               aes(yintercept = ref),
+               linetype="dashed",
+               color='black') +
+    scale_y_continuous(labels = scales::percent_format(accuracy = 1),limits=c(0,0.1)) +
+    scale_color_manual(values=rate_cols)+
+    labs(x=paste0("Stratum absolute Log2 Fold Change"),y="FDR",colour="Budget in USD\n (Lib. + Seq.)",linetype="")+
+    theme(legend.box = "vertical",legend.position = "right",
+          axis.text.x=element_text(angle=60,hjust=1))
+
+
+
+
+
+```
+
+```{r}
+
+
+df_genes<-getEvalDE_list_conditional(evalderes_prime_inex2_lfc,method = "prime-seq",count_type = "inex")$dat.genes.calc
+
+df_genes<-bind_rows(df_genes,getEvalDE_list_conditional(evalderes_tru_inex_lfc,method = "TruSeq",count_type = "inex")$dat.genes.calc)
+
+df_genes_sum<-df_genes %>% 
+  group_by(method,count_type) %>% 
+  separate(col = "Var1",sep = ",",into = c("lower","upper"),remove=F) %>% 
+  mutate(lower=as.double(str_extract_numbers(lower,decimals = T,negs = T)),
+         upper=as.double(str_extract_numbers(upper,decimals = T,negs = T)),
+         upper=if_else(is.na(upper),Inf,upper),
+         stratum=rep(1:10,each=2)) %>% 
+  group_by(stratum) %>% 
+  mutate(lower=min(lower),
+         upper=max(upper),
+         stratum=paste0(lower,"-",upper))
+
+ngenes_lfc<-ggplot(subset(df_genes_sum,lower>0),aes(x=stratum,y=Expectation,fill=L1,group=method))+
+  geom_col()+
+  facet_grid(method~.)+
+  theme(axis.text.x=element_text(angle=60,hjust=1))+
+  labs(x="Stratum Log2 Fold Change",y="Genes",fill="")+
+  scale_fill_manual(values=c("#e07a5f","#14213d"))
+
+```
+
+
+```{r}
+
+Fig_6B<-plot_grid(Fig.mean_pow_budget_seq,Fig.lfc_pow_budget,axis="trbl",align="hv")
+
+
+Fig_6_supp<-plot_grid(Fig.mean_fdr_budget_seq+theme(legend.position="right"),
+                       Fig.lfc_fdr_budget+theme(legend.position="none"),
+                       ngenes_mean,
+                       ngenes_lfc+theme(legend.position="none"),
+                       axis="tblr",align = "hv")
+
+ggsave(filename = "Fig_6B.pdf",
+       path = fig_path,
+       plot = Fig_6B,
+       units = "mm",
+       width= 400,
+       height= 130,
+       device = "pdf")
+
+ggsave(filename = "Supp_Fig_6.pdf",
+       path = fig_path,
+       plot = Fig_6_supp,
+       units = "mm",
+       width= 300,
+       height= 200,
+       device = "pdf")
+
+
+```
+
+
