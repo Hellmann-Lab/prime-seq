@@ -1,6 +1,7 @@
 # prime-seq
 
 This repository contains scripts used for the analysis of our paper called: 
+
 **prime-seq, a simple, inexpensive, and powerful bulk RNA-sequencing protocol for detecting differential expression**
 
 ## 1. Figure: RNA isolation
