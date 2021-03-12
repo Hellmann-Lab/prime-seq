@@ -49,6 +49,8 @@ HEK cells, human PBMCs and mouse striatal Tissue with either Columns or
 SPRI beads. R Notebooks for this analysis can be found
 [here](1_RNA_isolation/).
 
+Markdown [Lysis features](1_RNA_isolation/Lysis_features.md)
+
 ## 2\. Figure: power simulations
 
 To benchmark prime-seq we compared it to a gold standard data set from

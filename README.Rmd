@@ -47,6 +47,8 @@ All RNA-seq data was adapter trimmed with [cutadapt](https://cutadapt.readthedoc
 
 To test the impact of different RNA isolation methods on gene expression we performed prime-seq on three types of input. RNA was isolated from HEK cells, human PBMCs and mouse striatal Tissue with either Columns or SPRI beads. R Notebooks for this analysis can be found [here](1_RNA_isolation/).
 
+Markdown [Lysis features](1_RNA_isolation/Lysis_features.md)
+
 ## 2. Figure: power simulations
 
 To benchmark prime-seq we compared it to a gold standard data set from the MAQC consortium using [`powsimR`](https://github.com/bvieth/powsimR). R Notebooks for this analysis can be found [here](2_power_simulation/).
