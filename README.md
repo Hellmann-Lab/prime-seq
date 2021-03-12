@@ -17,10 +17,10 @@ For the full prime-seq protocol please visit
 
 # <img src="Fig1.png" align="center" width="1000" />
 
-Study Overview: prime-seq is a simple RNA-seq workflow that goes from
-lysate to sequencing library in no time. We benchmarked it’s performance
-against the MAQC-III study using power analysis and showed that it
-captures know biological differences in a differentiation experiment.
+prime-seq is a simple RNA-seq workflow that goes from lysate to
+sequencing library in no time. We benchmarked it’s performance against
+the MAQC-III study using power analysis and showed that it captures
+known biological differences in a differentiation experiment.
 
 The Data necessary to reproduce this analysis can be found at
 ArrayExpress:
