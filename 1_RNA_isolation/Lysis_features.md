@@ -1,22 +1,13 @@
----
-output: github_document
----
 
-```{r setup, include=FALSE}
-knitr::opts_chunk$set(echo = TRUE,
-                      warning = FALSE,
-                      message = FALSE,
-                      collapse = TRUE,
-                      comment = "#>")
-```
-## Purpose: 
+## Purpose:
+
 Figure 2 - feature plots
 
-## Protocol: 
+## Protocol:
 
-### 1. Load the following packages:
+### 1\. Load the following packages:
 
-```{r packages}
+``` r
 library(tidyverse)
 library(ggsignif)
 library(ggrepel)
@@ -26,13 +17,11 @@ library(grid)
 library(gridExtra)
 library(ggsci)
 library(cowplot)
-
 ```
 
-### 2. Load following functions:
+### 2\. Load following functions:
 
-
-```{r functions}
+``` r
 ## all necessary custom functions are in the following script
 source("/data/share/htp/prime-seq_Paper/Scripts/custom_functions.R")
 
@@ -52,20 +41,20 @@ theme_set(theme_pub)
 options(scipen=999)
 
 fig_path<-"/data/share/htp/prime-seq_Paper/Fig_beads_columns/"
-
 ```
 
 # Features Plots
 
-### 3. Information files  
+### 3\. Information files
 
-Read the information table, which also contains the total sequenced reads calculated using:
+Read the information table, which also contains the total sequenced
+reads calculated using:
 
 zcat file.fq.gz | wc -l
 
 then divide by 4
 
-```{r feat_seq_info}
+``` r
 feat_seq_info <- read_delim(paste0(fig_path,"analysis/Lysis/Features_sequencing_info.csv"),
                             ";", 
                             escape_double = FALSE, 
@@ -78,14 +67,13 @@ inf$Sample <- as.character(inf$Sample)
 inf<-inf %>% 
   mutate(Condition=case_when(Condition=="Incubation + ProtK"~"Magnetic Beads",
                              TRUE~Condition))
-
 ```
 
-### 4. readspercell files 
+### 4\. readspercell files
 
 Load readspercell files from zUMIs, which show all features for every i7
 
-```{r readspercell}
+``` r
 #read files
 readspercell_HEK <- read.table(paste0(fig_path,"zUMIs/HEK/zUMIs_output/stats/Bulk_opt_lysis_test_2_HEK.readspercell.txt"), header = T)
 readspercell_HEK$Celltype <- "HEK"
@@ -102,14 +90,13 @@ readspercell <- bind_rows(readspercell_HEK,
                           readspercell_Tissue)
 
 colnames(readspercell)[1] <- "XC" 
-
 ```
 
-
-### 5. Sequencing Features Bar Plot  
+### 5\. Sequencing Features Bar Plot
 
 Calculate the necessary features for the sequencing table
-```{r feat_seq_calc}
+
+``` r
 #calculate the reads that passed phred QC from zUMIs 
 QCPass <- readspercell %>% group_by(Celltype) %>% summarize(QCPass=sum(N)) %>% as.data.frame()
 
@@ -159,14 +146,14 @@ plot_feat_seq <- ggplot(subset(feat_seq_info_long, type != "QCFail"), aes(x=1, y
 plot_feat_seq
 ```
 
+![](Lysis_features_files/figure-gfm/feat_seq_calc-1.png)<!-- -->
 
+### 6\. Mitochondrial, Ribosomal, and lncRNA Reads - HEK - 10k cells
 
-### 6. Mitochondrial, Ribosomal, and lncRNA Reads - HEK - 10k cells
+Calculate the mitochondrial and ribosomal reads from exonic and intronic
+count matrix and use this for features plots
 
-Calculate the mitochondrial and ribosomal reads from exonic and intronic count matrix and use this for features plots
-
-
-```{r mito_ribo HEK}
+``` r
 
 ## define colours
 iso_type_cols<-c("#00BECF","#EB343C","#F49D5B", "#4BAF66")
@@ -269,6 +256,11 @@ plot_gtype_bar_HEK_all_inex <- ggplot(inex_gtype_sum, aes(x=Condition, y=Counts)
           axis.title.y = element_blank(),
           axis.text.x = element_text(angle=45,hjust=1))
 plot_gtype_bar_HEK_all_inex
+```
+
+![](Lysis_features_files/figure-gfm/mito_ribo%20HEK-1.png)<!-- -->
+
+``` r
 
 exon_gtype_sum$seq_type<-"Exon"
 intron_gtype_sum$seq_type<-"Intron"
@@ -283,16 +275,14 @@ mitoribo_agg_HEK_ex <- exon_gtype_sum %>%
 mitoribo_agg_HEK_inex <- inex_gtype_sum %>% 
   group_by(type,cond) %>% 
   summarize(Counts=sum(Counts),Celltype=unique(Celltype),Condition=unique(Condition)) 
-
-
 ```
 
-### 7. Mitochondrial, Ribosomal, and lncRNA Reads - PBMCs
+### 7\. Mitochondrial, Ribosomal, and lncRNA Reads - PBMCs
 
-Calculate the mitochondrial and ribosomal reads from exonic and intronic count matrix and use this for features plots
+Calculate the mitochondrial and ribosomal reads from exonic and intronic
+count matrix and use this for features plots
 
-
-```{r mito_ribo PBMCs}
+``` r
 #load count matrix
 counts <- readRDS(paste0(fig_path,"zUMIs/PBMC/zUMIs_output/expression/Bulk_opt_lysis_PBMCs.dgecounts.rds"))
 
@@ -374,6 +364,11 @@ plot_gtype_bar_PBMC_all_inex <- ggplot(inex_gtype_sum, aes(x=Condition, y=Counts
           axis.title.y = element_blank(),
           axis.text.x = element_text(angle=45,hjust=1))
 plot_gtype_bar_PBMC_all_inex
+```
+
+![](Lysis_features_files/figure-gfm/mito_ribo%20PBMCs-1.png)<!-- -->
+
+``` r
 
 exon_gtype_sum$seq_type<-"Exon"
 intron_gtype_sum$seq_type<-"Intron"
@@ -388,17 +383,14 @@ mitoribo_agg_PBMC_ex <- exon_gtype_sum %>%
 mitoribo_agg_PBMC_inex <- inex_gtype_sum %>% 
   group_by(type,cond) %>% 
   summarize(Counts=sum(Counts),Celltype=unique(Celltype),Condition=unique(Condition)) 
-
 ```
 
+### 8\. Mitochondrial, Ribosomal, and lncRNA Reads - Tissue
 
+Calculate the mitochondrial and ribosomal reads from exonic and intronic
+count matrix and use this for features plots
 
-### 8. Mitochondrial, Ribosomal, and lncRNA Reads - Tissue
-
-Calculate the mitochondrial and ribosomal reads from exonic and intronic count matrix and use this for features plots
-
-
-```{r mito_ribo Tissue}
+``` r
 #load count matrix
 counts <- readRDS(paste0(fig_path,"zUMIs/Tissue/zUMIs_output/expression/Bulk_opt_lysis_Tissue.dgecounts.rds"))
 
@@ -478,6 +470,11 @@ plot_gtype_bar_Tissue_all_inex <- ggplot(inex_gtype_sum, aes(x=Condition, y=Coun
           axis.title.y = element_blank(),
           axis.text.x = element_text(angle=45,hjust=1))
 plot_gtype_bar_Tissue_all_inex
+```
+
+![](Lysis_features_files/figure-gfm/mito_ribo%20Tissue-1.png)<!-- -->
+
+``` r
 ## combine all dfs
 exon_gtype_sum$seq_type<-"Exon"
 intron_gtype_sum$seq_type<-"Intron"
@@ -492,16 +489,15 @@ mitoribo_agg_Tissue_ex <- exon_gtype_sum %>%
 mitoribo_agg_Tissue_inex <- inex_gtype_sum %>% 
   group_by(type,cond) %>% 
   summarize(Counts=sum(Counts),Celltype=unique(Celltype),Condition=unique(Condition))
-
 ```
 
+### 9\. Assigned-Mapped Feature Bar Plot
 
-
-### 9. Assigned-Mapped Feature Bar Plot 
 #### 9.1 Make Table
 
 Calculate the necessary features for the mapped table
-```{r feat_map_calc}
+
+``` r
 #create a table for mapped features
 feat_map_info <- feat_seq_info[,c(1, 7)]
 
@@ -545,12 +541,11 @@ mapped <- mapped %>%
 mapped_type<-mapped %>% 
   group_by(Condition,Celltype,type_map,cond) %>% 
   summarize(Counts=sum(Counts))
-
 ```
+
 #### 9.2 Make Plots
 
-
-```{r}
+``` r
 
 feat_cols<-c("#F08C4B", "#E5DFCC", "#3A8DB5", "#556f44", "#9dc183", "#4D8C57", "#256EA0","dodgerblue4")
 
@@ -574,6 +569,11 @@ plot_type_map <- ggplot(subset(mapped_type, Condition %in% c("Magnetic Beads", "
           panel.grid.minor = element_blank(),
           axis.ticks.y = element_blank()) 
 plot_type_map
+```
+
+![](Lysis_features_files/figure-gfm/unnamed-chunk-1-1.png)<!-- -->
+
+``` r
 
 #Figure 2b
 mapped_gtype<-mapped %>% 
@@ -598,6 +598,11 @@ plot_gtype_map <- ggplot(subset(mapped_gtype, Condition %in% c("Magnetic Beads",
           panel.grid.minor = element_blank(),
           axis.ticks.y = element_blank()) 
 plot_gtype_map
+```
+
+![](Lysis_features_files/figure-gfm/unnamed-chunk-1-2.png)<!-- -->
+
+``` r
 
 mapped_HEK<-mapped %>% 
   mutate(type = as.character(type), type = if_else(type == "Coding", "Exon", type), type=factor(type,
@@ -626,37 +631,4 @@ plot_feat_map_HEK <- ggplot(subset(mapped_HEK, Celltype == "HEK"), aes(x=Conditi
 plot_feat_map_HEK
 ```
 
-
-```{r save figures, include=F}
-
-# fig2a <- plot_type_map
-# fig2b <- plot_gtype_map
-# fig2_supp_HEK_feat <- plot_feat_map_HEK
-# 
-# 
-# ggsave(fig2a,
-#        device = "pdf",
-#        path = fig_path,
-#        width = 217,
-#        height=82,
-#        units = "mm",
-#        filename = "Fig2a.pdf"
-#        )
-# ggsave(fig2b,
-#        device = "pdf",
-#        path = fig_path,
-#        width = 217,
-#        height=82,
-#        units = "mm",
-#        filename = "Fig2b.pdf"
-#        )
-# ggsave(fig2_supp_HEK_feat,
-#        device = "pdf",
-#        path = fig_path,
-#        width = 217,
-#        height=82,
-#        units = "mm",
-#        filename = "Fig2_supp_HEK_feat.pdf"
-#        )
-
-```
+![](Lysis_features_files/figure-gfm/unnamed-chunk-1-3.png)<!-- -->
