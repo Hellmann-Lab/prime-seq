@@ -59,7 +59,12 @@ We used prime-seq on many different types of samples already, here we show two e
 Finally we showed the impact of per sample costs on power to detect differentially expressed genes. By enabling the study of many more biological replicates with a fixed budget compared to Illuminas TruSeq kit, prime-seq leverages the full power of bulk RNA-seq. R Notebooks for this analysis can be found [here](4_budget/).
 
 ## 5. Supplementary Figures
+
+Scripts for the analysis of the gDNA contamination experiment as well as the comparison of 1000 vs. 10000 cells are [here](5_supplementary_Figs/).
+
 ## 6. Molecular Workflow of prime-seq
+
+This schematic outlines the detailed molecular workflow from isolated RNA to sequencing library.
 
 # <img src="Workflow.png" align="center" width="1000" />
 

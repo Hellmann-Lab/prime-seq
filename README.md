@@ -78,7 +78,14 @@ this analysis can be found [here](4_budget/).
 
 ## 5\. Supplementary Figures
 
+Scripts for the analysis of the gDNA contamination experiment as well as
+the comparison of 1000 vs. 10000 cells are
+[here](5_supplementary_Figs/).
+
 ## 6\. Molecular Workflow of prime-seq
+
+This schematic outlines the detailed molecular workflow from isolated
+RNA to sequencing library.
 
 # <img src="Workflow.png" align="center" width="1000" />
 
