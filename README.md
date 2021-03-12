@@ -6,8 +6,7 @@
 This repository contains scripts used for the analysis performed in our
 paper
 
-**prime-seq, a simple, inexpensive, and powerful bulk RNA-sequencing
-protocol for detecting differential expression**
+**prime-seq, efficient, and powerful bulk RNA-sequencing**
 
 Aleksandar Janjic, Lucas E. Wange, Johannes W. Bagnoli, Johanna Geuder,
 Phong Nguyen, Daniel Richter, Beate Vieth, Christoph Ziegenhain, Binje
