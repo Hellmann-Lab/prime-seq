@@ -119,12 +119,14 @@ names(seqType_cols)<-c("Mitochondrial",
                        "Coding")
 
 
-#load count matrix
-#counts <- readRDS(paste0(fig_path,"Bulk_opt_lysis_test_2_HEK.dgecounts.rds"))# too big for github
-
-#subset exonic and intronic reads
-
-#inex <- as.matrix(counts$readcount$inex$all) %>% remove_Geneversion()# remove ensembl gene_version_id
+# #load count matrix
+# counts <- readRDS(paste0(fig_path,"Bulk_opt_lysis_test_2_HEK.dgecounts.rds"))# too big for github
+# 
+# #subset exonic and intronic reads
+# 
+# inex <- as.matrix(counts$readcount$inex$all) %>% remove_Geneversion()# remove ensembl gene_version_id
+# 
+# write_rds(inex,paste0(fig_path,"Bulk_opt_lysis_test_2_HEK.dgecounts.inex.rds"))
 
 inex <- readRDS(paste0(fig_path,"Bulk_opt_lysis_test_2_HEK.dgecounts.inex.rds"))
 
