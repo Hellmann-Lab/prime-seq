@@ -1,18 +1,13 @@
----
-output: github_document
----
 
-```{r setup, include=FALSE}
-knitr::opts_chunk$set(echo = TRUE, warning = FALSE, message = FALSE)
-```
-## Purpose: 
-Figure 2 - sensitivity plots 
+## Purpose:
 
-# Protocol: 
+Figure 2 - sensitivity plots
 
-### 1. Load the following packages:
+# Protocol:
 
-```{r packages}
+### 1\. Load the following packages:
+
+``` r
 library(tidyverse)
 library(ggsignif)
 library(ggplotify)
@@ -24,13 +19,11 @@ library(gridExtra)
 library(ggsci)
 library(UpSetR)
 library(cowplot)
-
 ```
 
-### 2. Load following functions:
+### 2\. Load following functions:
 
-
-```{r functions}
+``` r
 ### all necessary custom functions are in the following script
 source(paste0(here::here(),"/0_Scripts/custom_functions.R"))
 
@@ -49,24 +42,22 @@ options(scipen=999)
 
 fig_path<-paste0(here::here(),"/1_RNA_isolation/")
 ```
+
 ## Mito, Ribo, lncRNA
 
-### 3. Gtype 
+### 3\. Gtype
 
-```{r Get gene annotation}
-
+``` r
 gtype_human <- data.frame( species="human", getbiotype("hsapiens_gene_ensembl",species="human"))
 
 gtype_mouse <- data.frame( species="mouse", getbiotype("mmusculus_gene_ensembl",species="mouse"))
 ```
 
-
-
 ## Sensitivity Plots
 
-### 5. Load Data
+### 5\. Load Data
 
-```{r load_counts_HEK}
+``` r
 inf <- read.csv(paste0(fig_path,"sample_info.csv"), header = T, stringsAsFactors = F)
 
 inf$Sample <- as.character(inf$Sample)
@@ -121,13 +112,11 @@ exon_ds_df <- exon_ds_df[exon_ds_df$Condition %in% c( "Magnetic Beads", "Column"
 inex_ds_df <- inex_ds_df[inex_ds_df$depth != 2000000,]
 inex_ds_df_unfilt <- inex_ds_df_unfilt[inex_ds_df_unfilt$depth != 2000000,]
 exon_ds_df <- exon_ds_df[exon_ds_df$depth != 2000000,]
-
 ```
 
-### 6. Figure 2D - Sensitivity, inex, filtered
+### 6\. Figure 2D - Sensitivity, inex, filtered
 
-```{r fig2d}
-
+``` r
 a1 <- ggplot(data = inex_ds_df, aes(x = depth, y = UMIs, color = Condition, group = Condition))+
   geom_smooth(method = "loess", se = F)+
   geom_point(size =2, aes(shape=Condition))+
@@ -165,13 +154,13 @@ fig2d <- cowplot::plot_grid(fig2d, legend,
   rel_heights = c(6,1)
 )
 fig2d
-
 ```
 
-### 7. Figure S2 - Sensitivity, inex, unfiltered
+![](Lysis_sensitivity_files/figure-gfm/fig2d-1.png)<!-- -->
 
-```{r figS2_unfilt}
+### 7\. Figure S2 - Sensitivity, inex, unfiltered
 
+``` r
 a2 <- ggplot(data = inex_ds_df_unfilt, aes(x = depth, y = UMIs, color = Condition, group = Condition))+
   geom_smooth(method = "loess", se = F)+
   geom_point(size =2, aes(shape=Condition))+
@@ -208,13 +197,13 @@ figS2_unfilt <- cowplot::plot_grid(figS2_unfilt, legend2,
   rel_heights = c(6,1)
 )
 figS2_unfilt
-
 ```
 
-### 8. Figure S2 - Sensitivity, exonic, filtered
+![](Lysis_sensitivity_files/figure-gfm/figS2_unfilt-1.png)<!-- -->
 
-```{r figS2_exon}
+### 8\. Figure S2 - Sensitivity, exonic, filtered
 
+``` r
 a3 <- ggplot(data = exon_ds_df, aes(x = depth, y = UMIs, color = Condition, group = Condition))+
   geom_smooth(method = "loess", se = F)+
   geom_point(size =2, aes(shape=Condition))+
@@ -251,13 +240,13 @@ figS2_ex <- cowplot::plot_grid(figS2_ex, legend3,
   rel_heights = c(6,1)
 )
 figS2_ex
-
 ```
 
+![](Lysis_sensitivity_files/figure-gfm/figS2_exon-1.png)<!-- -->
 
-### 9. Fig S2 - UpsetR Hek
+### 9\. Fig S2 - UpsetR Hek
 
-```{r upsetr hek}
+``` r
 #HEK
 hek_inf_b <- (inf %>% filter(Condition == "Magnetic Beads") %>% filter(Celltype == "HEK"))$XC
 hek_inf_c <- (inf %>% filter(Condition == "Column") %>% filter(Celltype == "HEK"))$XC
@@ -380,50 +369,16 @@ tissue_sum_df<-table(fromList(tissue_upsetR_df)$Column,fromList(tissue_upsetR_df
 bind_rows(hek_sum_df,pbmc_sum_df,tissue_sum_df) %>% 
   mutate(frac_unique=as.integer(V2)/total,
          frac_shared=1-frac_unique)
+```
 
+    ##      V1    V2 total sample frac_unique frac_shared
+    ## 1 18747   489 19236    HEK  0.02542109   0.9745789
+    ## 2 16289  2793 19082   PBMC  0.14636831   0.8536317
+    ## 3 16341  1479 17820 Tissue  0.08299663   0.9170034
+
+``` r
 figS2_upset <-cowplot::plot_grid(as.grob(upset_hek), as.grob(upset_pbmc), as.grob(upset_tissue), 
                  rows = 1, 
                  labels = c("HEK Cells", "PBMCs", "Tissue"),
                  label_x = 0.5)
-
 ```
-
-
-
-```{r Save figures for publication,include=F}
-
-# ggsave(fig2d,
-#        device = "pdf",
-#        path = fig_path,
-#        width = 217,
-#        height=174,
-#        units = "mm",
-#        filename = "Fig2c.pdf"
-#        )
-# ggsave(figS2_ex,
-#        device = "pdf",
-#        path = fig_path,
-#        width = 217,
-#        height=174,
-#        units = "mm",
-#        filename = "Fig2_supp_exonic.pdf"
-#        )
-# ggsave(figS2_unfilt,
-#        device = "pdf",
-#        path = fig_path,
-#        width = 217,
-#        height=174,
-#        units = "mm",
-#        filename = "Fig2_supp_unfilt.pdf"
-#        )
-# ggsave(figS2_upset,
-#        device = "pdf",
-#        path = fig_path,
-#        width = 434,
-#        height=130,
-#        units = "mm",
-#        filename = "Fig2_supp_upset.pdf"
-#        )
-
-```
-
