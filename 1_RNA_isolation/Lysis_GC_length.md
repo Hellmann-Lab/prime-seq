@@ -1,17 +1,11 @@
----
-output: github_document
----
 
-```{r setup, include=FALSE}
-knitr::opts_chunk$set(echo = TRUE, warning = FALSE, message = FALSE)
-```
-## Purpose: 
-# Figure S2 --  Length/GC and Volcano Plots
+## Purpose:
 
+# Figure S2 – Length/GC and Volcano Plots
 
-### 1. Load the following packages:
+### 1\. Load the following packages:
 
-```{r packages}
+``` r
 library(tidyverse)
 library(ggsignif)
 library(ggrepel)
@@ -26,13 +20,11 @@ library(Seurat)
 library(DESeq2)
 library(EnhancedVolcano)
 library(biomaRt)
-
 ```
 
-### 2. Load following functions:
+### 2\. Load following functions:
 
-
-```{r functions}
+``` r
 ### all necessary custom functions are in the following script
 source(paste0(here::here(),"/0_Scripts/custom_functions.R"))
 #prevent scientific notation
@@ -52,10 +44,11 @@ theme_pub <- theme_bw() + theme(
 fig_path<-paste0(here::here(),"/1_RNA_isolation/")
 ```
 
+### 3\. HEK
 
-### 3. HEK
-#### 3.1 DE Genes HEK Columns vs. Beads
-```{r hek}
+#### 3.1 DE Genes HEK Columns vs. Beads
+
+``` r
 counts <- readRDS(paste0(fig_path,"Bulk_opt_lysis_test_2_HEK.dgecounts.rds"))
 
 inf <- read.csv(paste0(fig_path,"sample_info.csv"), header = T, stringsAsFactors = F)
@@ -87,7 +80,20 @@ des <- DESeq(des, test = "Wald")
 Column_vs_Beads <- results(des, contrast = c("Condition", "Column", "Magnetic Beads"), alpha = 0.05)
 Column_vs_Beads <- na.omit(Column_vs_Beads)
 summary(Column_vs_Beads)
+```
 
+    ## 
+    ## out of 17695 with nonzero total read count
+    ## adjusted p-value < 0.05
+    ## LFC > 0 (up)       : 4157, 23%
+    ## LFC < 0 (down)     : 4011, 23%
+    ## outliers [1]       : 0, 0%
+    ## low counts [2]     : 0, 0%
+    ## (mean count < 1)
+    ## [1] see 'cooksCutoff' argument of ?results
+    ## [2] see 'independentFiltering' argument of ?results
+
+``` r
 Column_vs_Beads_HEK <- as.data.frame(Column_vs_Beads)
 
 ##volcano plot
@@ -107,6 +113,12 @@ keyvals[which((Column_vs_Beads$log2FoldChange < -1) & (Column_vs_Beads$padj < 10
 names(keyvals)[which((Column_vs_Beads$log2FoldChange < -1) & (Column_vs_Beads$padj < 10e-6))] <- 'Upregulated with Bead Extraction'
 
 unique(names(keyvals))
+```
+
+    ## [1] "Upregulated with Column Extraction" "Neither"                           
+    ## [3] "Upregulated with Bead Extraction"
+
+``` r
 volcano_hek <- EnhancedVolcano(Column_vs_Beads,
     lab = rownames(Column_vs_Beads),
     selectLab = "",
@@ -125,8 +137,11 @@ volcano_hek <- EnhancedVolcano(Column_vs_Beads,
 volcano_hek
 ```
 
-#### 3.2 Length and GC bias of DE genes (HEK Column vs. Beads)
-```{r length and gc bias of DE genes}
+![](Lysis_GC_length_files/figure-gfm/hek-1.png)<!-- -->
+
+#### 3.2 Length and GC bias of DE genes (HEK Column vs. Beads)
+
+``` r
 ## length and gc
 #df with genes and which cond it is upregulated in
 Column_vs_Beads_HEK$ENSEMBL <- row.names(Column_vs_Beads_HEK)
@@ -168,7 +183,11 @@ plot_length_HEK <- ggplot(Column_vs_Beads_HEK_filt, aes(x=Length, fill = Upregul
         strip.text.y = element_text(angle = 360)) 
 
 plot_length_HEK
+```
 
+![](Lysis_GC_length_files/figure-gfm/length%20and%20gc%20bias%20of%20DE%20genes-1.png)<!-- -->
+
+``` r
 plot_gc_HEK <- ggplot(Column_vs_Beads_HEK_filt, aes(x=GC, fill = Upregulated)) + 
   geom_density(alpha=0.5) + 
   scale_x_continuous(trans = "log10",expand = c(0, 0)) + 
@@ -181,15 +200,15 @@ plot_gc_HEK <- ggplot(Column_vs_Beads_HEK_filt, aes(x=GC, fill = Upregulated)) +
         strip.text.y = element_text(angle = 360)) 
 
 plot_gc_HEK
-
 ```
 
+![](Lysis_GC_length_files/figure-gfm/length%20and%20gc%20bias%20of%20DE%20genes-2.png)<!-- -->
 
-### 4. PBMCs
+### 4\. PBMCs
 
-#### 4.1 DE Genes PBMC Columns vs. Beads
-```{r pbmcs}
+#### 4.1 DE Genes PBMC Columns vs. Beads
 
+``` r
 counts <- readRDS(paste0(fig_path,"Bulk_opt_lysis_PBMCs.dgecounts.rds"))
 ##subset info table
 inf_PBMC <- inf %>% filter(Celltype == "PBMCs")
@@ -212,6 +231,20 @@ des <- DESeq(des, test = "Wald")
 Column_vs_Beads <- results(des, contrast = c("Condition", "Column", "Magnetic Beads"), alpha = 0.05)
 Column_vs_Beads <- na.omit(Column_vs_Beads)
 summary(Column_vs_Beads)
+```
+
+    ## 
+    ## out of 15568 with nonzero total read count
+    ## adjusted p-value < 0.05
+    ## LFC > 0 (up)       : 2841, 18%
+    ## LFC < 0 (down)     : 3352, 22%
+    ## outliers [1]       : 0, 0%
+    ## low counts [2]     : 0, 0%
+    ## (mean count < 1)
+    ## [1] see 'cooksCutoff' argument of ?results
+    ## [2] see 'independentFiltering' argument of ?results
+
+``` r
 Column_vs_Beads_pbmcs <- as.data.frame(Column_vs_Beads)
 
 ##volcano plot
@@ -231,6 +264,12 @@ keyvals[which((Column_vs_Beads$log2FoldChange < -1) & (Column_vs_Beads$padj < 10
 names(keyvals)[which((Column_vs_Beads$log2FoldChange < -1) & (Column_vs_Beads$padj < 10e-6))] <- 'Upregulated with Bead Extraction'
 
 unique(names(keyvals))
+```
+
+    ## [1] "Neither"                            "Upregulated with Bead Extraction"  
+    ## [3] "Upregulated with Column Extraction"
+
+``` r
 volcano_pbmcs <- EnhancedVolcano(Column_vs_Beads,
     lab = rownames(Column_vs_Beads),
     selectLab = "",
@@ -250,11 +289,11 @@ volcano_pbmcs <- EnhancedVolcano(Column_vs_Beads,
 volcano_pbmcs
 ```
 
-  
-#### 4.2 Length and GC bias of DE genes (PBMCs Column vs. Beads)
+![](Lysis_GC_length_files/figure-gfm/pbmcs-1.png)<!-- -->
 
-```{r length and gc bias of DE genes pbmc}
+#### 4.2 Length and GC bias of DE genes (PBMCs Column vs. Beads)
 
+``` r
 ## length and gc
 #df with genes and which cond it is upregulated in
 Column_vs_Beads_pbmcs$ENSEMBL <- row.names(Column_vs_Beads_pbmcs)
@@ -293,7 +332,11 @@ plot_length_pbmcs <- ggplot(Column_vs_Beads_pbmcs_filt, aes(x=Length, fill = Upr
         strip.text.y = element_text(angle = 360)) 
 
 plot_length_pbmcs
+```
 
+![](Lysis_GC_length_files/figure-gfm/length%20and%20gc%20bias%20of%20DE%20genes%20pbmc-1.png)<!-- -->
+
+``` r
 plot_gc_pbmcs <- ggplot(Column_vs_Beads_pbmcs_filt, aes(x=GC, fill = Upregulated)) + 
   geom_density(alpha=0.5) + 
   scale_x_continuous(trans = "log10",expand = c(0, 0)) + 
@@ -308,12 +351,13 @@ plot_gc_pbmcs <- ggplot(Column_vs_Beads_pbmcs_filt, aes(x=GC, fill = Upregulated
 plot_gc_pbmcs
 ```
 
+![](Lysis_GC_length_files/figure-gfm/length%20and%20gc%20bias%20of%20DE%20genes%20pbmc-2.png)<!-- -->
 
-### 5. Striatal Tissue
+### 5\. Striatal Tissue
 
-#### 5.1 DE Genes Striatal Tissue Columns vs. Beads
-```{r tissue}
+#### 5.1 DE Genes Striatal Tissue Columns vs. Beads
 
+``` r
 counts <- readRDS(paste0(fig_path,"Bulk_opt_lysis_Tissue.dgecounts.rds"))
 
 
@@ -338,6 +382,20 @@ des <- DESeq(des, test = "Wald")
 Column_vs_Beads <- results(des, contrast = c("Condition", "Column", "Magnetic Beads"), alpha = 0.05)
 Column_vs_Beads <- na.omit(Column_vs_Beads)
 summary(Column_vs_Beads)
+```
+
+    ## 
+    ## out of 13969 with nonzero total read count
+    ## adjusted p-value < 0.05
+    ## LFC > 0 (up)       : 1142, 8.2%
+    ## LFC < 0 (down)     : 4833, 35%
+    ## outliers [1]       : 0, 0%
+    ## low counts [2]     : 0, 0%
+    ## (mean count < 1)
+    ## [1] see 'cooksCutoff' argument of ?results
+    ## [2] see 'independentFiltering' argument of ?results
+
+``` r
 Column_vs_Beads_tissue <- as.data.frame(Column_vs_Beads)
 
 ##volcano plot
@@ -357,6 +415,12 @@ keyvals[which((Column_vs_Beads$log2FoldChange < -1) & (Column_vs_Beads$padj < 10
 names(keyvals)[which((Column_vs_Beads$log2FoldChange < -1) & (Column_vs_Beads$padj < 10e-6))] <- 'Upregulated with Bead Extraction'
 
 unique(names(keyvals))
+```
+
+    ## [1] "Upregulated with Bead Extraction"   "Neither"                           
+    ## [3] "Upregulated with Column Extraction"
+
+``` r
 volcano_tissue <- EnhancedVolcano(Column_vs_Beads,
     lab = rownames(Column_vs_Beads),
     selectLab = "",
@@ -373,12 +437,13 @@ volcano_tissue <- EnhancedVolcano(Column_vs_Beads,
     legendPosition = "bottom")
 
 volcano_tissue
-
 ```
 
-#### 5.2 Length and GC bias of DE genes (Striatal Tissue Column vs. Beads)
+![](Lysis_GC_length_files/figure-gfm/tissue-1.png)<!-- -->
 
-```{r length and gc bias of DE genes tissue}
+#### 5.2 Length and GC bias of DE genes (Striatal Tissue Column vs. Beads)
+
+``` r
 ## length and gc
 #df with genes and which cond it is upregulated in
 Column_vs_Beads_tissue$ENSEMBL <- row.names(Column_vs_Beads_tissue)
@@ -417,7 +482,11 @@ plot_length_tissue <- ggplot(Column_vs_Beads_tissue_filt, aes(x=Length, fill = U
         strip.text.y = element_text(angle = 360)) 
 
 plot_length_tissue
+```
 
+![](Lysis_GC_length_files/figure-gfm/length%20and%20gc%20bias%20of%20DE%20genes%20tissue-1.png)<!-- -->
+
+``` r
 plot_gc_tissue <- ggplot(Column_vs_Beads_tissue_filt, aes(x=GC, fill = Upregulated)) + 
   geom_density(alpha=0.5) + 
   scale_x_continuous(trans = "log10",expand = c(0, 0)) + 
@@ -430,12 +499,13 @@ plot_gc_tissue <- ggplot(Column_vs_Beads_tissue_filt, aes(x=GC, fill = Upregulat
         strip.text.y = element_text(angle = 360))
 
 plot_gc_tissue
-
 ```
 
+![](Lysis_GC_length_files/figure-gfm/length%20and%20gc%20bias%20of%20DE%20genes%20tissue-2.png)<!-- -->
 
-### 6. Final Figures
-```{r}
+### 6\. Final Figures
+
+``` r
 #volcano plot
 legend_volcano <- cowplot::get_legend(volcano_tissue)
 volcano_all <- cowplot::plot_grid(volcano_hek, volcano_pbmcs, volcano_tissue + theme(legend.position = "none"),
@@ -449,7 +519,11 @@ Supp_Fig_volcano_all <- cowplot::plot_grid(volcano_all, legend_volcano,
 )
 
 Supp_Fig_volcano_all
+```
 
+![](Lysis_GC_length_files/figure-gfm/unnamed-chunk-1-1.png)<!-- -->
+
+``` r
 #lenght gc content plot
 legend_density <- cowplot::get_legend(plot_gc_tissue)
 density_length <- cowplot::plot_grid(plot_length_HEK, 
@@ -469,52 +543,4 @@ Supp_Fig_density_all <- cowplot::plot_grid(density_length, density_gc, legend_de
 Supp_Fig_density_all
 ```
 
-
-
-```{r, include=F}
-
-# ggsave(Supp_Fig_density_all,
-#        device = "pdf",
-#        path = fig_path,
-#        width = 125,
-#        height=125,
-#        units = "mm",
-#        filename = "Fig2_supp_length_gc.pdf"
-#        )
-# 
-# ggsave(Supp_Fig_volcano_all,
-#        device = "pdf",
-#        path = fig_path,
-#        width = 125,
-#        height=125,
-#        units = "mm",
-#        filename = "Fig2_supp_volcano.pdf"
-#        )
-
-```
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
+![](Lysis_GC_length_files/figure-gfm/unnamed-chunk-1-2.png)<!-- -->
