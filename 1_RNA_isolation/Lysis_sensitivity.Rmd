@@ -497,7 +497,7 @@ bind_rows(hek_sum_df,pbmc_sum_df,tissue_sum_df) %>%
 ```
 
 
-```{r upsetr combined,fig.height=2,fig.width=10}
+```{r upsetr combined,fig.height=4,fig.width=10}
 figS2_upset <-cowplot::plot_grid(as.grob(upset_hek), as.grob(upset_pbmc), as.grob(upset_tissue), 
                  rows = 1, 
                  labels = c("HEK Cells", "PBMCs", "Tissue"),
