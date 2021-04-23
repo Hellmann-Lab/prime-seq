@@ -1,21 +1,13 @@
 
----
-output: github_document
----
+## Purpose:
 
+Figure 2e – Cost
 
-```{r setup, include=FALSE}
-knitr::opts_chunk$set(echo = TRUE, warning = FALSE, message = FALSE)
-```
-## Purpose: 
-Figure 2e  --  Cost
+# Protocol:
 
-# Protocol: 
+### 1\. Load following functions:
 
-### 1. Load following functions:
-
-
-```{r functions}
+``` r
 library(ggplot2)
 theme_pub <- theme_bw() + theme(plot.title = element_text(hjust = 0.5, size=18, face="bold"),
                                      axis.text = element_text(colour="black", size=14), 
@@ -26,15 +18,11 @@ theme_pub <- theme_bw() + theme(plot.title = element_text(hjust = 0.5, size=18, 
                                      axis.line.y = element_line(colour = "black"),
                                      strip.background=element_blank(), 
                                      strip.text=element_text(size=16))  
-
-
 ```
 
+### 2\. Load the following packages:
 
-### 2. Load the following packages:
-
-```{r packages}
-
+``` r
 library(tidyverse)
 library(ggsignif)
 library(ggrepel)
@@ -51,13 +39,11 @@ theme_set(theme_pub)
 fig_path<-paste0(here::here(),"/1_RNA_isolation/")
 ```
 
-
 ## Price Plots
 
-### 3. Lysis Plot
+### 3\. Lysis Plot
 
-
-```{r load_counts}
+``` r
 lysis <- read.csv(paste0(fig_path,"Extraction_costs.csv"), header = T, stringsAsFactors = F)
 samples <- read.csv(paste0(fig_path,"Extraction_samples.csv"), header = T, stringsAsFactors = F)
 
@@ -94,7 +80,11 @@ cost_bar <- ggplot(lysis, aes(x=Method, y=Cost, fill=Method))+
           axis.ticks.y = element_blank(),
           strip.placement = "outside") 
 cost_bar
+```
 
+![](Lysis_prices_files/figure-gfm/load_counts-1.png)<!-- -->
+
+``` r
 sample_bar <- ggplot(samples, aes(x=Method, y=Samples))+
     geom_bar(aes(fill=Method), stat = "identity", width=0.6)+
     geom_label(aes(x= Method, y = Samples+50, label = Samples), data = samples)+
@@ -110,25 +100,13 @@ sample_bar <- ggplot(samples, aes(x=Method, y=Samples))+
 sample_bar
 ```
 
-
-```{r Save_plot,include=F}
-# ggsave(sample_bar,
-#        device = "pdf",
-#        path = fig_path,
-#        width = 250,
-#        height = 130,
-#        units = "mm",
-#        filename = "Fig2d.pdf"
-#        )
-
-```
+![](Lysis_prices_files/figure-gfm/load_counts-2.png)<!-- -->
 
 ## Time Plots
 
-### 4. Lysis Plot
+### 4\. Lysis Plot
 
-
-```{r Hands-on time}
+``` r
 time <- read.csv(paste0(fig_path,"Lysis_Time.csv"), header = T, stringsAsFactors = F)
 
 time_bar <- ggplot(time, aes(x=Method, y=Minutes, fill=Type))+
@@ -143,15 +121,4 @@ time_bar <- ggplot(time, aes(x=Method, y=Minutes, fill=Type))+
 time_bar
 ```
 
-
-```{r Save time_bar, include=F}
-# ggsave(time_bar,
-#        device = "pdf",
-#        path = fig_path,
-#        width = 250,
-#        height = 130,
-#        units = "mm",
-#        filename = "FigS5.pdf"
-#        )
-
-```
+![](Lysis_prices_files/figure-gfm/Hands-on%20time-1.png)<!-- -->

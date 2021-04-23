@@ -50,7 +50,8 @@ SPRI beads. R Notebooks for this analysis can be found
 [here](1_RNA_isolation/).
 
 Markdown [Lysis features](1_RNA_isolation/Lysis_features.md)  
-Markdown [Lysis sensitivity](1_RNA_isolation/Lysis_sensitivity.md)
+Markdown [Lysis sensitivity](1_RNA_isolation/Lysis_sensitivity.md)  
+Markdown [Lysis costs](1_RNA_isolation/Lysis_prices.md)
 
 ## 2\. Figure: power simulations
 
