@@ -62,6 +62,14 @@ the MAQC consortium using
 [`powsimR`](https://github.com/bvieth/powsimR). R Notebooks for this
 analysis can be found [here](2_power_simulation/).
 
+Markdown [Method sensitivity](2_power_simulation/Comp_Sensitivity.md)  
+Markdown [Method sensitivity
+(Exon)](2_power_simulation/Comp_Sensitivity_Exonic.md)  
+Markdown [Method
+correlations](2_power_simulation/Comp_correlations.md)  
+Markdown [Method DEG](2_power_simulation/Comp_DEG.md)  
+Markdown [Method powsimR](2_power_simulation/Comp_powsimR.md)
+
 ## 3\. Figure: proof of concept, AML and iPSC to NPC
 
 We used prime-seq on many different types of samples already, here we
