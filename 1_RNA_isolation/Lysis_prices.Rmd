@@ -57,7 +57,7 @@ fig_path<-paste0(here::here(),"/1_RNA_isolation/")
 ### 3. Lysis Plot
 
 
-```{r load_counts}
+```{r load_counts,fig.width=10,fig.height=10}
 lysis <- read.csv(paste0(fig_path,"Extraction_costs.csv"), header = T, stringsAsFactors = F)
 samples <- read.csv(paste0(fig_path,"Extraction_samples.csv"), header = T, stringsAsFactors = F)
 
@@ -128,7 +128,7 @@ sample_bar
 ### 4. Lysis Plot
 
 
-```{r Hands-on time}
+```{r Hands-on time,fig.width=10,fig.height=10}
 time <- read.csv(paste0(fig_path,"Lysis_Time.csv"), header = T, stringsAsFactors = F)
 
 time_bar <- ggplot(time, aes(x=Method, y=Minutes, fill=Type))+
