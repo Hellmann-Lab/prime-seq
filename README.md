@@ -49,8 +49,8 @@ HEK cells, human PBMCs and mouse striatal Tissue with either Columns or
 SPRI beads. R Notebooks for this analysis can be found
 [here](1_RNA_isolation/).
 
-Markdown [Lysis features](1_RNA_isolation/Lysis_features.md) Markdown
-[Lysis sensitivity](1_RNA_isolation/Lysis_sensitivity.md)
+Markdown [Lysis features](1_RNA_isolation/Lysis_features.md)  
+Markdown [Lysis sensitivity](1_RNA_isolation/Lysis_sensitivity.md)
 
 ## 2\. Figure: power simulations
 
