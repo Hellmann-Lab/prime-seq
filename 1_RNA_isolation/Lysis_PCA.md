@@ -1,17 +1,9 @@
----
-output: github_document
----
 
-```{r setup, include=FALSE}
-knitr::opts_chunk$set(echo = TRUE, warning = FALSE, message = FALSE)
-```
-## Purpose: Figure 2 --  PCA
+## Purpose: Figure 2 – PCA
 
+### 1\. Load the following packages:
 
-
-### 1. Load the following packages:
-
-```{r packages}
+``` r
 library(tidyverse)
 library(ggsignif)
 library(ggrepel)
@@ -24,14 +16,11 @@ library(dplyr)
 library(UpSetR)
 library(cowplot)
 library(Seurat)
-
 ```
 
-### 2. Load following functions:
+### 2\. Load following functions:
 
-
-```{r functions}
-
+``` r
 ## all necessary custom functions are in the following script
 source(paste0(here::here(),"/0_Scripts/custom_functions.R"))
 
@@ -48,15 +37,11 @@ theme_pub <- theme_bw() + theme(plot.title = element_text(hjust = 0.5, size=18, 
 #prevent scientific notation
 options(scipen=999)
 fig_path<-paste0(here::here(),"/1_RNA_isolation/")
-
 ```
 
+### 3\. HEK - Load Data
 
-### 3. HEK - Load Data
-
-
-
-```{r load_counts}
+``` r
 counts <- readRDS(paste0(fig_path,"Bulk_opt_lysis_test_2_HEK.dgecounts.rds"))
 
 inf <- read.csv(paste0(fig_path,"sample_info.csv"), header = T, stringsAsFactors = F)
@@ -71,11 +56,11 @@ inf_HEK <- inf %>% filter(Celltype == "HEK") %>% filter(Cells == "10")
 
 #inex
 inex_umi <- as.matrix(counts$umicount$inex$all) %>% remove_Geneversion()
-
 ```
 
-### 4. HEK - Clustering 
-```{r}
+### 4\. HEK - Clustering
+
+``` r
 inex_umi <- inex_umi[,inf_HEK$BC]
 inex_umi <- inex_umi[grep(rownames(inex_umi),pattern="ERCC*",invert = T),]
 data_seurat <- CreateSeuratObject(counts = inex_umi, project = "HEK", min.cells = 3, min.features = 200)
@@ -103,7 +88,11 @@ PCA12 <- ggplot(data= pcs, aes(x=PC1, y=PC2, col = condition)) +
   ylab(paste0("PC2: ",round(percVar[2,1]),"% variance"))
 
 PCA12
+```
 
+![](Lysis_PCA_files/figure-gfm/unnamed-chunk-1-1.png)<!-- -->
+
+``` r
 PCA23 <- ggplot(data= pcs, aes(x=PC2, y=PC3, col = condition)) +
   geom_point(size =4, aes(shape=condition))+
   theme_pub+
@@ -113,42 +102,6 @@ PCA23 <- ggplot(data= pcs, aes(x=PC2, y=PC3, col = condition)) +
   ylab(paste0("PC3: ",round(percVar[3,1]),"% variance"))
 
 PCA23
-
 ```
 
-
-```{r Save Plot,include=F}
-
-# ggsave(PCA12,
-#        device = "pdf",
-#        path = fig_path,
-#        width = 180,
-#        height=160,
-#        units = "mm",
-#        filename = "Fig2_supp_pca.pdf"
-#        )
-
-```
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
+![](Lysis_PCA_files/figure-gfm/unnamed-chunk-1-2.png)<!-- -->

@@ -435,7 +435,7 @@ plot_gc_tissue
 
 
 ### 6. Final Figures
-```{r}
+```{r ,fig.width=10,fig.height=10}
 #volcano plot
 legend_volcano <- cowplot::get_legend(volcano_tissue)
 volcano_all <- cowplot::plot_grid(volcano_hek, volcano_pbmcs, volcano_tissue + theme(legend.position = "none"),
