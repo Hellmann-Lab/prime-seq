@@ -1,0 +1,214 @@
+---
+title: "Count Intergenic per species"
+output: html_notebook
+---
+
+
+Getting species annotation for intergenic mapping reads
+
+```{r}
+require(GenomicRanges)
+require(GenomicFeatures)
+require(GenomicAlignments)
+require(AnnotationDbi)
+
+library(methods)
+library(data.table)
+library(yaml)
+
+source("/data/share/htp/prime-seq_Paper/Fig_gdna_priming/analysis/count_intergenic/count_intergenic_functions.R")
+
+outdir<-"/data/share/htp/prime-seq_Paper/Fig_gdna_priming/zUMIs/"
+
+gtf<-"/data/share/htp/prime-seq_Paper/genomes/HsapMmus/gencode.v35.vM25.primary_assembly.annotation.gtf"
+  
+  
+  txdb <- suppressWarnings(suppressMessages(GenomicFeatures::makeTxDbFromGFF(file=gtf, format="gtf")))
+
+  
+  ## Make Gene-range GR-object
+  se <- suppressMessages(
+    AnnotationDbi::select(txdb, keys(txdb, "GENEID"),
+                              columns=c("GENEID","TXCHROM","TXSTART","TXEND","TXSTRAND"),
+                              keytype="GENEID") %>%
+    dplyr::group_by(GENEID,TXCHROM,TXSTRAND)  %>%
+    dplyr::mutate( txstart =ifelse(TXSTART<TXEND,min(TXSTART),min(TXEND)),
+                   txend  =ifelse(TXSTART<TXEND,max(TXEND),min(TXSTART) ) ) %>%
+    dplyr::select(GENEID,TXCHROM,TXSTRAND,txstart,txend)  %>% unique()
+    )
+
+  gr.gene<-GenomicRanges::GRanges(seqnames = se$TXCHROM,
+                                  ranges =  IRanges(start= se$txstart,
+                                                    end=  se$txend,
+                                                    names=se$GENEID),
+                                  strand =  se$TXSTRAND,
+                                  gid    =  se$GENEID)
+
+  ### Get non-overlapping Introns/Exons
+  intron<-GenomicFeatures::intronsByTranscript(txdb, use.names=T)
+  exon<-GenomicFeatures::exonsBy(txdb, by="tx",use.names=T)
+
+  intron.exon.red <- c( GenomicRanges::reduce(unlist(intron),ignore.strand=T), GenomicRanges::reduce(unlist(exon),ignore.strand=T) )
+  intron.exon.dis <- GenomicRanges::disjoin(intron.exon.red, ignore.strand=T)
+  intron.only<-GenomicRanges::setdiff(intron.exon.dis, unlist(exon) ,ignore.strand=T)
+  intergenic.only<-gaps(intron.exon.dis)
+  
+  ol.in<-GenomicRanges::findOverlaps(intron.only, gr.gene, select="arbitrary")
+  ol.ex<-GenomicRanges::findOverlaps(unlist(exon), gr.gene, select="arbitrary")
+  ol.ig<-GenomicRanges::findOverlaps(intergenic.only, gr.gene, select="arbitrary")
+
+  intron.saf<-data.frame(GeneID= names(gr.gene)[ol.in],
+                         Chr   = seqnames(intron.only),
+                         Start = start(intron.only),
+                         End	 =   end(intron.only),stringsAsFactors = F)
+  exon.saf<-data.frame(GeneID= names(gr.gene)[ol.ex],
+                       Chr   = seqnames(unlist(exon)),
+                       Start = start(unlist(exon)),
+                       End	 =   end(unlist(exon)),
+                       Strand =  strand(unlist(exon)),stringsAsFactors = F)
+
+  intergenic.saf<-data.frame(GeneID= seqnames(intergenic.only),
+                       Chr   = seqnames(intergenic.only),
+                       Start = start(intergenic.only),
+                       End	 =   end(intergenic.only),
+                       Strand = rep("+",times=length(intergenic.only)),
+                       stringsAsFactors = F)
+  
+  intergenic.saf<-rbind(intergenic.saf,data.frame(GeneID= seqnames(intergenic.only),
+                       Chr   = seqnames(intergenic.only),
+                       Start = start(intergenic.only),
+                       End	 =   end(intergenic.only),
+                       Strand = rep("-",times=length(intergenic.only)),
+                       stringsAsFactors = F))
+  
+  intron.saf<-dplyr::left_join(intron.saf,unique(exon.saf[,c("GeneID","Strand")]),by=c("GeneID"))
+  
+
+  
+
+  saf <- list(introns=unique(intron.saf),exons=unique(exon.saf),intergenic=unique(intergenic.saf))
+  
+saveRDS(saf, file="/data/share/htp/prime-seq_Paper/Fig_gdna_priming/analysis/count_intergenic/inex_intergenic.saf.RDS")
+```
+
+
+```{r}
+
+saf<-readRDS(file="/data/share/htp/prime-seq_Paper/Fig_gdna_priming/analysis/count_intergenic/inex_intergenic.saf.RDS")
+### Ok now let's try to count 
+
+project<- c("rep1","rep2","rep3")
+
+abamfile<-c(paste0("/data/share/htp/prime-seq_Paper/Fig_gdna_priming/zUMIs/",project[1],"_noMulti/Bulk_opt_gDNA_priming_",project[1],".filtered.tagged.Aligned.out.bam"),
+           paste0("/data/share/htp/prime-seq_Paper/Fig_gdna_priming/zUMIs/",project[2],"_noMulti/Bulk_opt_gDNA_priming_",project[2],".filtered.tagged.Aligned.out.bam"),
+           paste0("/data/share/htp/prime-seq_Paper/Fig_gdna_priming/zUMIs/",project[3],"_noMulti/Bulk_opt_gDNA_priming_",project[3],".filtered.tagged.Aligned.out.bam")
+            )  
+
+for (i in 1:3) {
+fnex<-.runFeatureCount(abamfile[i],
+                       saf=saf$exons,
+                       strand=1,
+                       type="ex",
+                       primaryOnly = F,
+                       cpu = 10,
+                       mem = 75,
+                       outdir=paste0(outdir,project[i]))
+ffiles<-fnex
+
+fnin  <-.runFeatureCount(abamfile[i],
+                           saf=saf$introns,
+                           strand=1,
+                           type="in",
+                           primaryOnly = F,
+                           cpu = 10,
+                           mem = 75,
+                         outdir=paste0(outdir,project[i]))
+
+ffiles<-c(ffiles,fnin)
+
+fninter  <-.runFeatureCount(abamfile[i],
+                           saf=saf$intergenic,
+                           strand=1,
+                           type="inter",
+                           primaryOnly = F,
+                           cpu = 10,
+                           mem = 75,
+                       outdir=paste0(outdir,project[i]))
+
+ffiles<-c(ffiles,fninter)
+
+system(paste0("for i in ",paste(ffiles,collapse=" ")," ; do samtools sort -n -O 'BAM' -@ ",round(10/2,0)," -m 15G -o $i $i.tmp & done ; wait"))
+system(paste("rm",paste0(ffiles,".tmp",collapse=" ")))
+}
+
+
+```
+
+```{r}
+
+#get Intergenic reads from zUMIs-stats2.R
+gtf2<-"/data/share/htp/prime-seq_Paper/Fig_gdna_priming/zUMIs/rep1/Bulk_opt_gDNA_priming_rep1.final_annot.gtf"
+user_seq<- getUserSeq(gtf2) 
+spec_seq<- getSpecies(gtf2)
+
+####
+bcb<-c("/data/share/htp/prime-seq_Paper/Fig_gdna_priming/zUMIs/rep1/zUMIs_output/Bulk_opt_gDNA_priming_rep1kept_barcodes_binned.txt",
+       "/data/share/htp/prime-seq_Paper/Fig_gdna_priming/zUMIs/rep2/zUMIs_output/Bulk_opt_gDNA_priming_rep2kept_barcodes_binned.txt",
+       "/data/share/htp/prime-seq_Paper/Fig_gdna_priming/zUMIs/rep3/zUMIs_output/Bulk_opt_gDNA_priming_rep3kept_barcodes_binned.txt")
+
+BCstats<-c("/data/share/htp/prime-seq_Paper/Fig_gdna_priming/zUMIs/rep1/Bulk_opt_gDNA_priming_rep1.BCstats.txt",
+           "/data/share/htp/prime-seq_Paper/Fig_gdna_priming/zUMIs/rep2/Bulk_opt_gDNA_priming_rep2.BCstats.txt",
+           "/data/share/htp/prime-seq_Paper/Fig_gdna_priming/zUMIs/rep3/Bulk_opt_gDNA_priming_rep3.BCstats.txt")
+
+kbc<-c("/data/share/htp/prime-seq_Paper/Fig_gdna_priming/zUMIs/rep1/zUMIs_output/Bulk_opt_gDNA_priming_rep1kept_barcodes.txt",
+       "/data/share/htp/prime-seq_Paper/Fig_gdna_priming/zUMIs/rep2/zUMIs_output/Bulk_opt_gDNA_priming_rep2kept_barcodes.txt",
+       "/data/share/htp/prime-seq_Paper/Fig_gdna_priming/zUMIs/rep3/zUMIs_output/Bulk_opt_gDNA_priming_rep3kept_barcodes.txt")
+
+for (i in 1:3){
+  bccount<-fread(bcb[i])
+
+bccount<-splitRG(bccount=bccount, mem= 75,read_layout = "SE")
+
+binmap <- BCbin(bccount_file =BCstats[i],
+                  bc_detected  = bccount,
+                nReadsperCell = 100,
+                nthread = 10,
+                BarcodeBinning = 2)
+
+# samouts <- prep_samtools(featfiles = ffiles,
+#                          bccount   = bccount,
+#                          cores     = 10,
+#                          project = project[1],
+#                          BarcodeBinning = 2,
+#                          outdir=outdir)
+
+
+bc<-data.table::fread(kbc[i],select = 1, header = T)
+
+featfile_vector <- c(paste0(outdir,project[i],"/Bulk_opt_gDNA_priming_",project[i],".filtered.tagged.Aligned.out.bam.ex.featureCounts.bam"),
+                       paste0(outdir,project[i],"/Bulk_opt_gDNA_priming_",project[i],".filtered.tagged.Aligned.out.bam.in.featureCounts.bam"),
+                       paste0(outdir,project[i],"/Bulk_opt_gDNA_priming_",project[i],".filtered.tagged.Aligned.out.bam.inter.featureCounts.bam"))
+
+typeCount <- sumstatBAM( featfiles = featfile_vector,
+                         cores = 10,
+                         outdir= outdir,
+                         user_seq = user_seq,
+                         bc = bc,
+                         outfile = paste0(outdir,project[i],".bc.READcounts.rds"),
+                         BCstats = BCstats[i],
+                         nReadsperCell = 100,
+                         mem_limit = 75,
+                         bccount = bccount,
+                         project = project[i],
+                         BarcodeBinning = 2,
+                         mem = 75,
+                         read_layout = "SE",
+                         spec_seq = spec_seq,
+                         binmap=binmap)
+
+tc<-data.frame(typeCount)
+tc$type<-factor(tc$type, levels=rev(c("Exon","Intron","Intergenic_mouse","Intergenic_human","Intergenic","Ambiguity","Unmapped","User")))
+write.table(tc,file = paste(outdir,project[i],".readspercell.txt",sep=""),sep="\t",row.names = F,col.names = T)
+}
+
+```

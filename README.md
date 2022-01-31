@@ -22,11 +22,11 @@ sequencing library in no time. We benchmarked it’s performance against
 the MAQC-III study using power analysis and showed that it captures
 known biological differences in a differentiation experiment.
 
-The Data necessary to reproduce this analysis can be found at
+The data necessary to reproduce this analysis can be found at
 ArrayExpress:
 
 | Accession    | Dataset                |
-| ------------ | ---------------------- |
+|--------------|------------------------|
 | E-MTAB-10140 | Beads\_Columns\_tissue |
 | E-MTAB-10138 | Beads\_Columns\_PBMC   |
 | E-MTAB-10142 | Beads\_Columns\_HEK    |
@@ -41,36 +41,72 @@ All RNA-seq data was adapter trimmed with
 [cutadapt](https://cutadapt.readthedocs.io/en/stable/) and preprocessed
 with [zUMIs](https://github.com/sdparekh/zUMIs/) (Parekh et al., 2017).
 
-## 1\. Figure: RNA isolation
+## 1. Development of the prime-seq protocol
 
-To test the impact of different RNA isolation methods on gene expression
-we performed prime-seq on three types of input. RNA was isolated from
-HEK cells, human PBMCs and mouse striatal Tissue with either Columns or
-SPRI beads. R Notebooks for this analysis can be found
-[here](1_RNA_isolation/).
+Here we summarize the different experiment previous version of prime-seq
+have been used for in terms of number of samples, species and intron and
+exon mapped fractions. Next we show that introns can be used for gene
+expression quantification and are not derived from contaminating gDNA. R
+Notebooks for this analysis can be found
+[here](1_prime_seq_development/)
 
-Markdown [Lysis features](1_RNA_isolation/Lysis_features.md)  
-Markdown [Lysis sensitivity](1_RNA_isolation/Lysis_sensitivity.md)  
-Markdown [Lysis costs](1_RNA_isolation/Lysis_prices.md)  
-Markdown [Lysis DE](1_RNA_isolation/Lysis_GC_length.md)  
-Markdown [Lysis PCA](1_RNA_isolation/Lysis_PCA.md)
+### 1.1 prime-seq has been used extensively and is robust with different inputs
 
-## 2\. Figure: power simulations
+We collected data from prime-seq experiments that were performed in the
+last years during it’s development and show that prime-seq works
+robustly on many different samples.
+
+[prime-seq robustness](1_prime_seq_development/sensitivityplot.md)
+
+### 1.2 Intronic reads in prime-seq are not derived from gDNA and can be used for expression quantification
+
+[gDNA priming](1_prime_seq_development/gDNA_priming_analysis.md)
+
+## 2. prime-seq performs as well as TruSeq
 
 To benchmark prime-seq we compared it to a gold standard data set from
 the MAQC consortium using
 [`powsimR`](https://github.com/bvieth/powsimR). R Notebooks for this
 analysis can be found [here](2_power_simulation/).
 
-Markdown [Method sensitivity](2_power_simulation/Comp_Sensitivity.md)  
-Markdown [Method sensitivity
-(Exon)](2_power_simulation/Comp_Sensitivity_Exonic.md)  
-Markdown [Method
-correlations](2_power_simulation/Comp_correlations.md)  
-Markdown [Method DEG](2_power_simulation/Comp_DEG.md)  
-Markdown [Method powsimR](2_power_simulation/Comp_powsimR.md)
+[Method sensitivity](2_power_simulation/Comp_Sensitivity.md)  
+[Method correlations](2_power_simulation/Comp_correlations.md)  
+[Method powsimR](2_power_simulation/Comp_powsimR.md)
 
-## 3\. Figure: proof of concept, AML and iPSC to NPC
+## 3. Bead-based RNA extraction increases cost efficiency and throughput
+
+To test the impact of different RNA isolation methods on gene expression
+we performed prime-seq on three types of input. RNA was isolated from
+HEK cells, human PBMCs and mouse striatal Tissue with either Columns or
+SPRI beads. R Notebooks for this analysis can be found
+[here](3_RNA_isolation/).
+
+[Lysis features](3_RNA_isolation/Lysis_features.md)  
+[Lysis sensitivity](3_RNA_isolation/Lysis_sensitivity.md)  
+[Lysis costs](3_RNA_isolation/Lysis_prices.md)  
+[Lysis DE](3_RNA_isolation/Lysis_GC_length.md)  
+[Lysis PCA](3_RNA_isolation/Lysis_PCA.md)
+
+### 3.x Intron counts in prime seq correlate with exon counts and show 3’ enrichment
+
+[Intron vs. exon
+expression](3_RNA_isolation/intron_exon_analysis/HEK_intron_exon.md)
+
+### 3.1 prime-seq is sensitive and works well with 1,000 cells
+
+[Low input sensitivity](3_RNA_isolation/Low_input_sensitivity.md)  
+[Low input correlations](3_RNA_isolation/Low_input_correlations.md)
+
+### 3.2 cross-contamination in prime-seq is low
+
+R Notebooks for this analysis can be found
+[here](6_additional_analysis/)
+
+[cross-contamination](6_additional_analysis/prime-seq_rev_CrossCont.md)  
+[cross-contamination
+simulation](6_additional_analysis/Comp_powsim_contamination.md)
+
+## 4. Figure: proof of concept, AML and iPSC to NPC
 
 We used prime-seq on many different types of samples already, here we
 show two examples. The first data set consists of 96 archival AML PDX
@@ -80,23 +116,24 @@ measured accurately using our method. In a second dataset we compared
 neuronal differentiation of five iPS cell lines that we generated
 [previously](https://www.nature.com/articles/s41598-021-82883-0) (Geuder
 et al. 2021). R Notebooks for this analysis can be found
-[here](3_proof_of_principle/).
+[here](4_proof_of_principle/).
 
-## 4\. Figure: Budget vs. Power
+[AML PDX
+PCA](5_proof_of_principle/Analysis_of_AML_PDX_Samples_for_prime-seq.Rmd)
+[iPSC to NPC differentiation](4_proof_of_principle/iPSC_figures.Rmd)
+
+## 5. Figure: Budget vs. Power
 
 Finally we showed the impact of per sample costs on power to detect
 differentially expressed genes. By enabling the study of many more
 biological replicates with a fixed budget compared to Illuminas TruSeq
 kit, prime-seq leverages the full power of bulk RNA-seq. R Notebooks for
-this analysis can be found [here](4_budget/).
+this analysis can be found [here](5_budget/).
 
-## 5\. Supplementary Figures
+[method costs](5_budget/Cost.Rmd)  
+[power vs. budget](5_budget/powsim_vs_budget.Rmd)
 
-Scripts for the analysis of the gDNA contamination experiment as well as
-the comparison of 1000 vs. 10000 cells are
-[here](5_supplementary_Figs/).
-
-## 6\. Molecular Workflow of prime-seq
+## 6. Molecular Workflow of prime-seq
 
 This schematic outlines the detailed molecular workflow from isolated
 RNA to sequencing library.
@@ -107,13 +144,13 @@ RNA to sequencing library.
 
 ``` r
 sessionInfo()
-#> R version 4.0.3 (2020-10-10)
+#> R version 4.1.0 (2021-05-18)
 #> Platform: x86_64-pc-linux-gnu (64-bit)
 #> Running under: Devuan GNU/Linux 3 (beowulf)
 #> 
 #> Matrix products: default
-#> BLAS:   /usr/lib/x86_64-linux-gnu/atlas/libblas.so.3.10.3
-#> LAPACK: /usr/lib/x86_64-linux-gnu/atlas/liblapack.so.3.10.3
+#> BLAS:   /usr/lib/x86_64-linux-gnu/openblas/libblas.so.3
+#> LAPACK: /usr/lib/x86_64-linux-gnu/libopenblasp-r0.3.5.so
 #> 
 #> locale:
 #>  [1] LC_CTYPE=en_US.UTF-8       LC_NUMERIC=C              
@@ -127,8 +164,8 @@ sessionInfo()
 #> [1] stats     graphics  grDevices utils     datasets  methods   base     
 #> 
 #> loaded via a namespace (and not attached):
-#>  [1] compiler_4.0.3  magrittr_2.0.1  tools_4.0.3     htmltools_0.5.1
-#>  [5] yaml_2.2.1      stringi_1.5.3   rmarkdown_2.6   knitr_1.30     
-#>  [9] stringr_1.4.0   xfun_0.20       digest_0.6.27   rlang_0.4.10   
-#> [13] evaluate_0.14
+#>  [1] compiler_4.1.0  magrittr_2.0.1  fastmap_1.1.0   tools_4.1.0    
+#>  [5] htmltools_0.5.2 yaml_2.2.1      stringi_1.7.4   rmarkdown_2.11 
+#>  [9] knitr_1.36      stringr_1.4.0   xfun_0.28       digest_0.6.28  
+#> [13] rlang_0.4.12    evaluate_0.14
 ```

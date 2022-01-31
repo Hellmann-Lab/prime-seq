@@ -1,13 +1,23 @@
 
+---
+output: github_document
+---
+
 ```{r setup, include=FALSE}
-knitr::opts_chunk$set(echo = TRUE, warning = FALSE, message = FALSE)
+knitr::opts_chunk$set(echo = TRUE,
+                      warning = FALSE,
+                      message = FALSE,
+                      collapse = TRUE,
+                      comment = "#>",fig.height = 8,
+                      fig.width = 10)
 ```
-##Purpose: 
-Figure 3 - MAQC Comparison - Sensitivity  plots
 
-#Protocol: 
 
-###1. Load the following packages:
+## Purpose: 
+MAQC Comparison - Sensitivity  plots
+
+
+### 1. Load the following packages:
 
 ```{r packages}
 library(tidyverse)
@@ -24,12 +34,12 @@ library(biomaRt)
 
 ```
 
-###2. Load following functions:
+### 2. Load following functions:
 
 
 ```{r functions}
 ### all necessary custom functions are in the following script
-source("/data/share/htp/prime-seq_Paper/Scripts/custom_functions.R")
+source(paste0(here::here(),"/0_Scripts/custom_functions.R"))
 
 theme_pub <- theme_bw() + theme(
                                      plot.title = element_text(hjust = 0.5, size=18, face="bold"),
@@ -42,13 +52,15 @@ theme_pub <- theme_bw() + theme(
                                      strip.background=element_blank(), 
                                      strip.text=element_text(size=16))  
 
+theme_set(theme_pub)
+
 #prevent scientific notation
 options(scipen=999)
 
-fig_path<-"/data/share/htp/prime-seq_Paper/Fig_maqc_comparison/"
+fig_path <- paste0(here::here(),"/2_power_simulation/")
 ```
 
-###3. Gtype 
+
 
 ```{r}
 
@@ -58,13 +70,13 @@ gtype_human <- data.frame( species="human", getbiotype("hsapiens_gene_ensembl",s
 
 ## Sensitivity
 
-###5. Load Data
+### 3. Load Data
 
 
 ```{r load_counts}
-counts_prime <- readRDS(paste0(fig_path,"/zUMIs/prime-seq/zUMIs_output/expression/prime-seq.dgecounts.rds"))
-counts_tru <- readRDS(paste0(fig_path,"/zUMIs/SEQC_PE/zUMIs_output/expression/SEQC_PE.dgecounts.rds"))
-
+counts_prime <- readRDS(paste0(fig_path,"prime-seq.dgecounts.rds"))
+counts_tru <- readRDS(paste0(fig_path,"SEQC_PE.dgecounts.rds"))
+    
 inf <- read.csv(paste0(fig_path,"/sample_info.csv"), header = T, stringsAsFactors = F)
 
 # subset only coding genes
@@ -89,12 +101,15 @@ inex_ds_df_nc_tru <-collapse_downsampled_counts(zumismat = counts_tru,type="inex
 
 # plot mean gene expression
 plot_mean_gene_prime <- mean_gene_exp(data = counts_prime, genes = coding_genes_prime_reads, UMI = F)
+plot_mean_gene_prime
 plot_mean_gene_tru <- mean_gene_exp(data = counts_tru, genes = coding_genes_tru, UMI = F)
+plot_mean_gene_tru
+
 
 ```
 
 
-###6. Number of inex umis/reads and genes per sample per downsampling
+### 4. Number of inex umis/reads and genes per sample per downsampling
 
 ```{r sensitivity_exon}
 
@@ -140,7 +155,7 @@ a1 <- ggplot(data = ds_df, aes(x= depth, y = UMIs, color = method, group = data)
   scale_x_continuous(breaks = c(10000000,20000000,30000000), labels = c(10,20,30))+
   scale_y_continuous(breaks = c(10000000,20000000,30000000), labels = c(10,20,30))+
   theme_pub+
-  scale_color_manual(values = c("#008080","gray70"))+
+  scale_color_manual(values = c("#008080","gray70"),limits= force)+
   theme(legend.position="none")
 
 b1 <- ggplot(data = ds_df, aes(x= depth, y = Genes, color = method, group = data))+
@@ -150,7 +165,7 @@ b1 <- ggplot(data = ds_df, aes(x= depth, y = Genes, color = method, group = data
   ylab("Genes")+
   scale_x_continuous(breaks = c(10000000,20000000,30000000), labels = c(10,20,30))+
   theme_pub+
-  scale_color_manual(values = c("#008080","gray70"))+
+  scale_color_manual(values = c("#008080","gray70"),limits= force)+
   theme(legend.position="none")
 
 #calculate p values
@@ -188,7 +203,7 @@ c1 <- ggplot(data = ds_df_common, aes(x= method, y = Genes))+
   ylim(19800,26000)+
   geom_signif(data=annotation_df, aes(xmin=start, xmax=end, annotations=label, y_position=y),textsize = 5, vjust = 0, manual=TRUE)+
   theme_pub+
-  scale_color_manual(values = c("#008080","gray70"))+
+  scale_color_manual(values = c("#008080","gray70"),limits= force)+
   theme(legend.position="none",
         axis.text.x = element_blank(),
         axis.ticks.x = element_blank(),
@@ -201,7 +216,7 @@ sensitivity_legend <- ggplot(data = ds_df, aes(x= depth, y = Genes, color = meth
   labs(color = "Method", linetype = "Count")+
   guides(shape = F)+
   theme_pub+
-  scale_color_manual(values = c("#008080","gray70"))+
+  scale_color_manual(values = c("#008080","gray70"),limits= force)+
   theme(legend.position = "bottom")
 
 sensitivity_legend <- cowplot::get_legend(sensitivity_legend)
@@ -215,6 +230,8 @@ sensitivity_main <- cowplot::plot_grid(sensitivity_plots, sensitivity_legend,
   nrow = 2,
   rel_heights = c(4,1)
 )
+
+sensitivity_main
 
 ggsave(sensitivity_main,
        device = "pdf",
@@ -237,7 +254,7 @@ sa1 <- ggplot(data = ds_df_nc, aes(x= depth, y = UMIs, color = method, group = d
   scale_y_continuous(breaks = c(10000000,20000000,30000000), labels = c(10,20,30))+
   ggtitle("Number of Reads / UMIs")+
   theme_pub+
-  scale_color_manual(values = c("#008080","gray70"))+
+  scale_color_manual(values = c("#008080","gray70"),limits= force)+
   theme(legend.position="none")
 
 sb1 <- ggplot(data = ds_df_nc, aes(x= depth, y = Genes, color = method, group = data))+
@@ -249,7 +266,7 @@ sb1 <- ggplot(data = ds_df_nc, aes(x= depth, y = Genes, color = method, group = 
   scale_x_continuous(breaks = c(10000000,20000000,30000000), labels = c(10,20,30))+
   ggtitle("Number of Genes")+
   theme_pub+
-  scale_color_manual(values = c("#008080","gray70"))+
+  scale_color_manual(values = c("#008080","gray70"),limits= force)+
   theme(legend.position="none")
 
 supp_sensitivity_legend <- ggplot(data = ds_df_nc, aes(x= depth, y = Genes, color = method, group = data))+
@@ -258,7 +275,7 @@ supp_sensitivity_legend <- ggplot(data = ds_df_nc, aes(x= depth, y = Genes, colo
   labs(color = "Method", linetype = "Count")+
   guides(shape = F)+
   theme_pub+
-  scale_color_manual(values = c("#008080","gray70"))
+  scale_color_manual(values = c("#008080","gray70"),limits= force)
 
 supp_sensitivity_legend <- cowplot::get_legend(supp_sensitivity_legend)
 
@@ -268,11 +285,12 @@ supp_sensitivity <- cowplot::plot_grid(sa1, sb1, supp_sensitivity_legend,
   rel_widths = c(4,4,1)
 )
 
+supp_sensitivity
 ```
 
 ## Features
 
-###7. Load and Process Data
+### 5. Load and Process Data
 
 
 ```{r}
@@ -328,7 +346,7 @@ readspercell$type<-factor(readspercell$type, levels= c("ERCCs", "Exonic","Intron
 
 ```
 
-###8. Generate Feature Plots
+### 6. Generate Feature Plots
 
 ```{r}
 #feature bar plot
@@ -342,7 +360,7 @@ plot_feat_bar <- ggplot(readspermethod_long, aes(x=Method, y=value, fill=name))+
     ylab("Fraction of Assigned Reads") +
     scale_y_continuous(breaks=seq(0,1,0.1)) +
     coord_flip() +
-    scale_fill_manual(values = feat_cols)+
+    scale_fill_manual(values = feat_cols,limits= force)+
     guides(fill = guide_legend(nrow =1, reverse=T))+
     theme_pub+
     theme(legend.title = element_blank(), 
@@ -353,6 +371,8 @@ plot_feat_bar <- ggplot(readspermethod_long, aes(x=Method, y=value, fill=name))+
           panel.grid.major = element_blank(), 
           panel.grid.minor = element_blank(),
           axis.ticks.y = element_blank()) 
+
+plot_feat_bar
 
 ggsave(plot_feat_bar,
        device = "pdf",
@@ -365,4 +385,8 @@ ggsave(plot_feat_bar,
 
 ```
 
+## `R` Session Info
 
+```{r}
+sessionInfo()
+```

@@ -1,0 +1,672 @@
+---
+title: "DGE_exonic"
+author: "Aleks Janjic"
+date: "09/07/2020"
+output:
+  pdf_document: default
+  html_document: default
+Script: Bulk_DGE_script
+---
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE, warning = FALSE, message = FALSE)
+```
+##Purpose: 
+DGE Analysis between iPSCs and NPCs 
+
+##Protocol: 
+
+###1. Load the following packages:
+
+```{r packages}
+library(tidyverse)
+library(cowplot)
+library(RUVSeq)
+library(DESeq2)
+library(vsn)
+library(ggrepel)
+library(edgeR)
+library(genefilter)
+library(grid)
+library(gridExtra)
+library(ggsci)
+library(SingleR)
+```
+
+###2. Load following functions:
+
+
+```{r functions}
+## load custom functions
+source("/data/share/htp/prime-seq_Paper/Scripts/custom_functions.R")
+
+theme_pub <- theme_bw() + theme(axis.text = element_text(colour="black", size=14), 
+                                axis.title = element_text(colour="black", size=16, face="bold"), 
+                                legend.text=element_text(colour="black", size=14),
+                                legend.position="right", 
+                                axis.line.x = element_line(colour = "black"), 
+                                axis.line.y = element_line(colour = "black"),
+                                strip.background=element_blank(), 
+                                strip.text=element_text(size=16))  
+
+
+fig_path<-"/data/share/htp/prime-seq_Paper/Fig_ipsc/"
+
+```
+
+
+###3. Add the data set
+
+Read the RDS file into R, which is the end product of the zUMIs pipeline.
+
+```{r RDS}
+counts <- readRDS(paste0(fig_path,"zUMIs/zUMIs_output/expression/iPSC.dgecounts.rds"))
+```
+
+###4. Select the inex UMIs from the RDS
+
+The RDS file is a list which contains multiple data sets.
+
+All will be used as all samples were within the downsampling threshold. 
+
+```{r counts}
+umi <- as.matrix(counts$umicount$exon$all)
+countmatrix<-umi
+
+umi<-remove_Geneversion(umi)
+
+```
+
+###5. Add the information table
+
+This contains the index, barcode, condition, any additional experimental design information for the samples.
+
+```{r information table}
+inf <- read.csv(paste0(fig_path,"iPSC_sample_info.csv"), sep = ",", head = T, stringsAsFactors = F)
+
+```
+
+
+###6. Check UMI distribution per sample
+
+  -These were used initially with the entire data set to determine which samples to remove
+
+```{r QC Check, warning=FALSE}
+
+#UMI and Gene Count 
+df <- data.frame(totalUMI = colSums(umi), sample_Barcode = colnames(umi), stringsAsFactors = F)
+
+dnorm <- ggplot(df, aes(totalUMI)) + 
+  geom_density(fill="cyan", alpha = 0.1) + 
+  geom_vline(xintercept= mean(df$totalUMI), col ="black") +
+  geom_vline(xintercept= (2*(mean(df$totalUMI))), col ="red") +
+  geom_vline(xintercept= ((mean(df$totalUMI))-((mean(df$totalUMI)))), col ="red") +
+  theme_pub
+
+
+plot_grid(dnorm + ggtitle("UMI-distribution per sample"), dnorm + scale_x_log10()+ ggtitle("...Log-scale"), ncol =2)
+
+```
+
+###7. Filter the genes in the count matrix
+
+Remove genes with zero or low counts using our custom Filter.  
+
+```{r filtering}
+
+###Filtering by % of expression
+#create a list of the genes which should be kept (10% and 25%)
+umi_10_list <- whichgenes_reproducible(umi,1,0.10)
+umi_25_list <- whichgenes_reproducible(umi,1,0.25)
+
+
+#subset the df with the genes
+umi_10 <- umi[row.names(umi) %in% umi_10_list, ]
+
+umi_25 <- umi[row.names(umi) %in% umi_25_list, ]
+
+```
+
+
+###8. Gene and UMI Table
+
+```{r genes and umi}
+#combine Number of UMIs and genes per sample barcode
+#exonic
+df_genes <- data.frame(BC=colnames(umi), 
+                      NUM_GENES=colSums(umi>0),
+                      NUM_GENES_10=colSums(umi_10>0),
+                      NUM_GENES_25=colSums(umi_25>0))
+
+df_umis <- data.frame(BC=colnames(umi), 
+                      NUM_UMI=colSums(umi),
+                      NUM_UMI_10=colSums(umi_10),
+                      NUM_UMI_25=colSums(umi_25))
+
+
+#combine tables
+df_combo <- dplyr::left_join(df_genes, df_umis, by = "BC")
+
+# Combine data and annotation
+df_genes<- dplyr::left_join(df_genes, inf, by="BC") 
+df_umis<- dplyr::left_join(df_umis, inf, by="BC")
+df_combo<- dplyr::left_join(df_combo, inf, by="BC")
+
+
+#prevent scientific notation
+options(scipen=999)
+
+
+#longtables
+
+df_genes_long <- gather(data = df_genes, 
+                             key = "Filtering", 
+                             value = "NUM_GENES", 
+                             -Well, -Individual, -Celltype, -Sample, -Passage, -BC)
+
+df_umis_long <- gather(data = df_umis, 
+                            key = "Filtering", 
+                            value = "NUM_UMI", 
+                             -Well, -Individual, -Celltype, -Sample, -Passage, -BC)
+
+```
+
+
+###9. Plot Number of Genes, UMIs, and Reads by Filtering
+ 
+```{r gene umi read plots}
+#mean gene expression
+plot_mean <- ggplot()+
+  geom_density(aes(x= rowMeans(umi), fill="Unfiltered"), alpha=0.7)+
+  geom_density(aes(x= rowMeans(umi_10), fill="10% Filtered"), alpha=0.7)+
+  geom_density(aes(x= rowMeans(umi_25), fill="25% Filtered"), alpha=0.7)+
+  scale_fill_manual(values = c("#003F5A","#DE6600", "#696464"))+
+  geom_vline(xintercept=15, linetype="dashed")+
+  scale_x_log10()+
+  xlab("Mean Gene Expression (log10)")+
+  ggtitle("Exon Density Plot")+
+  theme_pub+
+  theme(legend.title = element_blank())
+  
+
+#gene umi plot
+plot_gu <- ggplot(df_combo)+
+  geom_point(aes(x = NUM_GENES, y = NUM_UMI, color=Celltype), size = 3)+
+  xlab("Number of Genes")+
+  ylab("Number of UMIs")+
+  ggtitle("Gene-UMI Plot")+
+  theme_pub
+
+  
+plot_genes <-ggplot(data=df_genes_long, aes(x=Filtering, y=NUM_GENES))+
+  geom_boxplot(aes(fill=Celltype), alpha=0.8, outlier.shape = NA, position=position_dodge(1))+
+  xlab("Gene Filtering")+
+  ylab("Number of Genes")+
+  scale_x_discrete(labels=c("NUM_GENES" = "0%", "NUM_GENES_10" = "10%", "NUM_GENES_25" = "25%"))+
+  scale_fill_manual(values = c("#003F5A","#DE6600", "#696464"))+
+  scale_color_manual(values = c("#003F5A","#DE6600", "#696464"))+
+  theme(strip.background =element_rect(fill="#c6cad1"))+
+  theme_pub
+
+plot_umis <-ggplot(data=df_umis_long, aes(x=Filtering, y=NUM_UMI))+
+  geom_boxplot(aes(fill=Celltype), alpha=0.8, outlier.shape = NA, position=position_dodge(1))+
+  xlab("Gene Filtering")+
+  ylab("Number of UMIs")+
+  ylim(2800000,4500000)+
+  scale_x_discrete(labels=c("NUM_UMI" = "0%", "NUM_UMI_10" = "10%", "NUM_UMI_25" = "25%"))+
+  scale_fill_manual(values = c("#003F5A","#DE6600", "#696464"))+
+  scale_color_manual(values = c("#003F5A","#DE6600", "#696464"))+
+  theme(strip.background =element_rect(fill="#c6cad1"))+
+  theme_pub
+
+
+plot_genes
+plot_umis
+
+supp_fig_iPSC_gene_umi_counts <- cowplot::plot_grid(plot_genes, plot_umis,
+  ncol = 2,
+  nrow = 2,
+  labels = "auto"
+)
+
+#use the filtered umi 25% now
+umi <- umi_25[,colnames(umi_25) %in% inf$BC]
+
+```
+
+
+###9. Create a DESeq object
+
+The data is first aligned properly, making sure the barcodes in the information table are in the same order as those in the count table.  
+
+```{r dds}
+
+#change row names to barcodes
+rownames(inf) <- inf$BC
+
+#make sure bc are in same order as count table
+inf <-inf[colnames(umi),]
+
+#create DESeq object using data from HTSFilter
+dds <- DESeqDataSetFromMatrix(countData = umi,
+                                   colData = inf,
+                                   design = ~ 0 + Celltype)
+
+
+```
+
+###10. Estimate size factors
+
+Correction for library size
+
+```{r size factors}
+dds<- estimateSizeFactors(dds)
+
+
+#Overal the size factors do varry some but it is not too extreme. To see the size factors, remove # at start of the line.
+sizeFactors(dds)
+
+```
+
+###11. Estimate dispersion factors
+
+Dispersion parameter links the variance and mean of the count for the negative binomial distribution
+
+```{r dispersion factors}
+#estimate dispersion factors
+dds<- estimateDispersions(dds)
+
+```
+
+###12. Save the DESeq object
+
+```{r save dds}
+#save(dds,file=paste0(fig_path,"/analysis/iPSC_dds_exon.RData")
+
+```
+
+###13. Look at the dispersion estimates
+
+```{r disp plots}
+plotDispEsts(dds)
+
+```
+
+###14. Variance Stabilization 
+
+Either rlog or vsd can be used with DESeq2. The rlog transformation is preferable to the
+vsd transformation if the size factors vary widely (>5 fold)
+
+```{r rlog transform}
+rlogdds <- rlog(dds)
+
+#extract the matrix of normalized counts
+rlogMatdds <- assay(rlogdds)
+
+```
+
+###15. Visualize the stabilization 
+
+Generate a mean SD plot and a normalized box plot
+
+```{r norm vis}
+#SD plot
+meanSdPlot(rlogMatdds)
+
+
+#Normalization Boxplot
+source("/data/share/common/scripts/pcafunction.R")
+normBox <-normBoxplot(rlogMatdds)
+
+plot_grid(normBox)
+```
+
+###16. Generate PCA for visualizing variance
+
+Use PCA 1, 2, and 3
+
+- PCA 
+```{r PCA}
+# to label the points: ggrepel::geom_text_repel(aes(label=inf_jmjd$BC), color="black")
+#PCA:
+#Celltype
+PCAgene12_cell<- pcaFunction12(mat=rlogMatdds, inf=inf,col="Celltype", ngenes = 500, alpha = 0.9) + 
+  scale_color_manual(values=c("#E8B4B0", "#245D82")) + 
+  theme_pub + 
+  theme(legend.position = "bottom", legend.title = element_blank())
+
+PCAgene12_ind<- pcaFunction12(mat=rlogMatdds, inf=inf,col="Individual", ngenes = 500, alpha = 0.9) + scale_color_npg() + theme_pub
+
+```
+
+
+###17. Check Xist gene 
+
+Precautionary check to verify that sex of the individuals matches information sheet
+  - Xist gene for human (ENSG00000229807) was checked in not subsetted umi table. 
+
+```{r xist}
+rlogMatsex<- rlogMatdds["ENSG00000229807", ]
+library(reshape)
+rlogMatsex<- melt(rlogMatsex)
+rlogMatsex <- tibble::rownames_to_column(as.data.frame(rlogMatsex))
+colnames(rlogMatsex)<- c("BC","Xist")
+rlogMatsex<- left_join(rlogMatsex, inf, by="BC")
+
+Xistplot <-ggplot(rlogMatsex, aes(Sample, Xist))
+Xistplot + geom_bar(stat= "identity") + theme(axis.text.x = element_text(angle = 90, hjust = 1))
+```
+
+###18. Differential Expresion Analysis using DESeq2
+
+  - Use following parameters: Wald test, BY, p<0.1
+
+#### Wald Test
+
+```{r exon deseq}
+#run DESeq
+dds.wald <- DESeq(dds, test="Wald")
+resultsNames(dds.wald)
+summary(dds.wald)
+#save(dds.wald_jmjd, file="dds_wald_jmjd.RData")
+
+
+```
+
+#### Design with just condition
+
+
+```{r exon 10_6}
+#test between conditions
+ipsc_v_npc <- results(dds.wald,
+                     contrast= c("Celltype", "iPSC", "NPC"),
+                     independentFiltering = TRUE,
+                     alpha = 0.05,
+                     pAdjustMethod = "BY")
+
+## save lfcs for powsim
+
+saveRDS(as.data.frame(ipsc_v_npc),"/data/share/htp/prime-seq_Paper/Fig_ipsc/analysis/iPSC_vs_NPC_lfcs.rds")
+
+head(ipsc_v_npc)
+plotMA(ipsc_v_npc)
+ipsc_v_npc <- na.omit(ipsc_v_npc)
+summary(ipsc_v_npc)
+
+```
+
+
+###19. Gene Ontology 
+  
+  - Want to know if any nodes contain more significant genes than expected
+  - Perform TopGo on experiments which had DEGs
+
+```{r topgo packages}
+library(topGO)
+library(org.Hs.eg.db)
+```
+
+#### 
+
+```{r go}
+#order the data by padj value and log fold change
+subset <- subset(ipsc_v_npc, ipsc_v_npc[ , 6] < 0.05)
+fc <- abs(subset$log2FoldChange)
+ordered <- subset[order(fc, decreasing=T),]
+head(ordered)
+summary(ordered)
+
+###topgo testing
+padj <- ipsc_v_npc$padj
+names(padj) <- rownames(ipsc_v_npc)
+up <- padj
+down <- padj
+
+#if you want to just test up-regulated genes
+up[ipsc_v_npc$log2FoldChange<0]=1
+up <- na.omit(up)
+
+down[ipsc_v_npc$log2FoldChange>0]=1
+down <- na.omit(down)
+
+topDiffGenes <- function(x){return(x<0.05)}
+
+tg.1 <- new("topGOdata",
+            description = "iPSC vs NPC",
+            ontology = "BP",
+            allGenes = padj,
+            geneSel = topDiffGenes,
+            annot = annFUN.org,
+            nodeSize = 10,
+            ID = "ENSEMBL",
+            mapping = "org.Hs.eg.db")
+
+numGenes(tg.1)
+numSigGenes(tg.1)
+fisher.res1<- runTest(tg.1,
+                     algorithm = "elim",
+                     statistic = "fisher")
+fisher.res1
+fishtab1 <- GenTable(tg.1, Fisher = fisher.res1 , orderBy="Fisher" )
+
+fishtab1
+
+tg.1.up <- new("topGOdata",
+            description = "iPSC vs NPC up",
+            ontology = "BP",
+            allGenes = up,
+            geneSel = topDiffGenes,
+            annot = annFUN.org,
+            nodeSize = 10,
+            ID = "ENSEMBL",
+            mapping = "org.Hs.eg.db")
+
+numGenes(tg.1.up)
+numSigGenes(tg.1.up)
+fisher.res1.up<- runTest(tg.1.up,
+                     algorithm = "elim",
+                     statistic = "fisher")
+fisher.res1.up
+fishtab1.up <- GenTable(tg.1.up, Fisher = fisher.res1.up , orderBy="Fisher" )
+
+fishtab1.up
+
+tg.1.down <- new("topGOdata",
+            description = "iPSC vs NPC down",
+            ontology = "BP",
+            allGenes = down,
+            geneSel = topDiffGenes,
+            annot = annFUN.org,
+            nodeSize = 10,
+            ID = "ENSEMBL",
+            mapping = "org.Hs.eg.db")
+
+numGenes(tg.1.down)
+numSigGenes(tg.1.down)
+fisher.res1.down<- runTest(tg.1.down,
+                     algorithm = "elim",
+                     statistic = "fisher")
+fisher.res1.down
+fishtab1.down <- GenTable(tg.1.down, Fisher = fisher.res1.down , orderBy="Fisher" )
+
+fishtab1.down
+
+```
+
+###19. Heat Maps
+  
+
+```{r topgo packages}
+library(SingleR)
+library(scater)
+library(biomaRt)
+library(pheatmap)
+library(forcats)
+library(celldex)
+```
+
+
+## Cell Characterization Heat Map
+```{r singleR}
+
+#reference dataset
+hpca.se <- SingleR::HumanPrimaryCellAtlasData()
+hpca.se
+
+#normalized dataset
+npc_cnts <- counts(dds, normalize = T)
+
+#change dataset rownames to symbols
+ens <- useMart("ensembl") 
+ens <- useDataset("hsapiens_gene_ensembl",ens)
+bm <- getBM(attributes = c("ensembl_gene_id","external_gene_name"),
+            filters = "ensembl_gene_id",
+            values = row.names(npc_cnts),
+            mart = ens)
+
+npc_cnts <- npc_cnts[match(bm$ensembl_gene_id,row.names(npc_cnts)),]
+row.names(npc_cnts) <- bm$external_gene_name
+
+# test if row names are now symbols
+head(row.names(npc_cnts))
+
+# #pick common gene names between data set and ref 
+# common <- intersect(rownames(npc_cnts), rownames(hpca.se))
+# hpca.se <- hpca.se[common,]
+# npc_cnts_common <- npc_cnts[common,]
+# 
+# #singeR predictions
+# pred.npc <- SingleR(test = npc_cnts_common, ref = hpca.se, labels = hpca.se$label.main, method = "single")
+# 
+# #cell classification heatmap
+# sample.annotation <- inf[,c("Individual","Celltype"),drop=F]
+# ann_colors = list(
+#     Celltype = c(iPSC = "#E8B4B0", NPC = "#245D82"),
+#     Individual = c(Human1 = "#303030", Human2 = "#545454",Human3 = "#7C7C7C", Human4 = "#A6A6A6", Human5 = "#D1D1D1")
+# )
+# 
+# pred.npc.subset <- pred.npc$scores
+# rownames(pred.npc.subset) <- rownames(pred.npc)
+# pred.npc.subset <- pred.npc.subset[,c("iPS_cells", "Embryonic_stem_cells", "Neuroepithelial_cell", "Neurons")]
+# colnames(pred.npc.subset) <- c("iPSC", "ESC", "Neuroepithelial Cell", "Neurons")
+# 
+# 
+# characterization_heat <-pheatmap(t(pred.npc.subset),
+#                color=colorRampPalette(c( "#132E50","#4C89B5", "#FDF8E3", "#F5D411"))(100),
+#                annotation_col = sample.annotation,
+#                scale = "column",
+#                cluster_rows = F,
+#                cluster_cols = T,
+#                treeheight_col = 25, 
+#                treeheight_row = 0,
+#                cutree_cols = 2,
+#                show.labels = F, 
+#                annotation_legend = F,
+#                annotation_colors = ann_colors,
+#                border_color = "white",
+#                show_colnames = F,
+#                legend_breaks = c(-1,1),
+#                legend_labels = c("Low", "High")
+#                )
+
+```
+
+                                 
+## Marker Gene Heat Map
+
+
+```{r Gene Markers}
+
+#markers of interest from Johanna
+markers <- c("POU5F1", "NANOG", "KLF4", "NES","SOX1", "FOXG1")
+ipsc_markers <- c("Clorf210","CLDN6","ESRP1","GLBIL3","GYLTL1B","HES3","KCNG3","L1TD1","LCK","LIN28A","MATK","NANOG","POU5F1","PPP1R16B","PRDM14","PRSS8","SCNN1A","SLC7A3","TDGF1","TRIM71","VRTN","ZSCAN10","APELA","BEND4","CAMKV","DPPA4","HLA-DOA","HTR3A","KCNK5","PTPRZ1","SYT6")
+npc_markers <- c("SOX1","OTX2","FGF5","Pax6","Foxg1","Zic1","p75","BRN2","HOXC8","JUN","MECOM","NR2F1","RB1","ZEB1","Ascl","Ngn2")
+
+#combined list
+heatmap_markers <- cmarkers <- c("L1TD1","NANOG","KLF4","NES","FOXG1","POU5F1","PPP1R16B","TDGF1","TRIM71","VRTN","BEND4","CAMKV","DPPA4","PTPRZ1","SOX1","JUN","MECOM","NR2F1","RB1","ZEB1")
+
+#subset counts by markers
+npc_cnts_subset <- npc_cnts[heatmap_markers,]
+
+#scale counts
+cal_z_score <- function(x){
+  (x - mean(x)) / sd(x)
+}
+ 
+scaled_cnts_subset <- t(apply(npc_cnts_subset, 1, cal_z_score))
+
+#heatmap of expression
+sample.annotation <- inf[,c("Individual","Celltype"),drop=F]
+ann_colors = list(
+    Celltype = c(iPSC = "#E8B4B0", NPC = "#245D82"),
+    Individual = c(Human1 = "#303030", Human2 = "#545454",Human3 = "#7C7C7C", Human4 = "#A6A6A6", Human5 = "#D1D1D1")
+)
+
+#heatmap
+expression_heat <-pheatmap(scaled_cnts_subset,
+               color=colorRampPalette(c( "#132E50","#4C89B5", "#FDF8E3", "#F5D411"))(100),
+               annotation_col = sample.annotation,
+               scale = "column",
+               cluster_rows = T,
+               cluster_cols = T,
+               treeheight_col = 25, 
+               treeheight_row = 0,
+               cutree_cols = 2,
+               show.labels = T, 
+               annotation_legend = T,
+               annotation_colors = ann_colors,
+               border_color = "white",
+               show_colnames = F,
+               legend_breaks = c(-1,1),
+               legend_labels = c("Low", "High")
+               )
+
+
+# #make long table for boxplots
+# npc_cnts_subset_long <- as.data.frame(npc_cnts_subset_t)
+# npc_cnts_subset_long$BC <- rownames(npc_cnts_subset_long)
+# npc_cnts_subset_long <- left_join(npc_cnts_subset_long, inf, by = "BC")
+# npc_cnts_subset_long$Well <- NULL
+# npc_cnts_subset_long$Passage <- NULL
+# npc_cnts_subset_long <- pivot_longer(npc_cnts_subset_long, cols = 1:6, names_to = "Gene", values_to = "Counts")
+# 
+# npc_cnts_subset_long$Gene <- fct_relevel(npc_cnts_subset_long$Gene, "POU5F1", "NANOG", "KLF4", "NES", "SOX1", "FOXG1")
+# 
+# 
+# npc_cnts_box <-ggplot(data = npc_cnts_subset_long, aes(x=Celltype, y=Counts))+
+#   facet_wrap(~ Gene, scales = "free_y")+
+#   geom_boxplot(aes(fill=Celltype), alpha=0.8, outlier.shape = NA, position=position_dodge(1))+
+#   geom_point(aes(color=Celltype), position = position_jitterdodge(0.6))+
+#   ylab("Normalized Expression")+
+#   scale_fill_manual(values = c("#E8B4B0","#245D82"))+
+#   scale_color_manual(values = c("#E8B4B0","#245D82"))+
+#   theme_pub+
+#   theme(axis.text.x = element_blank(),
+#         axis.ticks.x = element_blank(),
+#         strip.background =element_rect(fill="#c6cad1"),
+#         axis.title.x = element_blank(),
+#         legend.position = "right")
+
+
+
+
+```
+
+Figure 
+```{r}
+## export figure
+
+ggsave(expression_heat,
+       device = "pdf",
+       path = fig_path,
+       width = 144,
+       height=110,
+       units = "mm",
+       filename = "Fig5_ipsc.pdf"
+       )
+
+
+```
+
+
+
+

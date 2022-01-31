@@ -1,0 +1,285 @@
+---
+output: github_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE,
+                      warning = FALSE,
+                      message = FALSE,
+                      collapse = TRUE,
+                      comment = "#>",fig.height = 8,
+                      fig.width = 10)
+```
+
+
+## Purpose: 
+measure cross-contamination and how it depends on cycles
+
+```{r}
+
+library(tidyverse)
+library(readxl)
+library(tidyverse)
+library(cowplot)
+library(ggsci)
+
+## all necessary custom functions are in the following script
+source(paste0(here::here(),"/0_Scripts/custom_functions.R"))
+
+theme_pub <- theme_bw() + theme(
+                                     plot.title = element_text(hjust = 0.5, size=18, face="bold"),
+                                     axis.text = element_text(colour="black", size=14), 
+                                     axis.title=element_text(size=16,face="bold"), 
+                                     legend.text=element_text(size=14),
+                                     legend.position="right",
+                                     axis.line.x = element_line(colour = "black"), 
+                                     axis.line.y = element_line(colour = "black"),
+                                     strip.background=element_blank(), 
+                                     strip.text=element_text(size=16))  
+
+theme_set(theme_pub)
+
+## paths
+fig_path<-here::here()
+data_path<-str_split(string = fig_path,pattern = "/analysis",simplify = T)[,1]
+
+## Feature Colours
+
+feat_cols<-c("#F08C4B", "#E5DFCC", "#556f44", "#9dc183", "#4D8C57", "#3A8DB5", "#256EA0","dodgerblue4","#256EA0","#AA4586","grey70")
+
+names(feat_cols)<-c("Ambiguity","Intergenic","Ribosomal","Mitochondrial","lncRNA","Intron","Coding","Intragenic","Exon","MultiMapped","Unmapped")
+
+
+
+fig_path <- paste0(here::here(),"/6_additional_analysis/")
+
+```
+
+```{r}
+info<-readRDS(paste0(fig_path,"/prime-seq_rev_CrossCont.rds"))
+
+features<-read.table(
+  file = paste0(fig_path,"/CrossCont.readspercell.txt"),
+           sep="\t",
+  header = T)  %>% 
+  inner_join(info,by=c("RG"="BC")) %>% 
+  mutate(type=as.factor(if_else(is.na(type),"MultiMapped",type))
+         )
+
+```
+
+
+```{r}
+
+features$type<-factor(features$type,levels = c("Unmapped","Ambiguity","Intergenic","MultiMapped","Intron","Exon"))
+
+ggplot(features)+
+  geom_col(aes(x=reorder(Well,N),y=N,fill=paste(Species,Pool_type)))+
+  coord_flip()+
+  theme(axis.text.y = element_blank(),
+        axis.ticks.y = element_blank())+
+  labs(x="Sample",fill="Type")+
+  ggsci::scale_fill_npg()
+
+
+features_mapped<-features %>% 
+  filter(!(type %in% c("Unmapped","MultiMapped")))
+
+ggplot(features_mapped)+
+  geom_col(aes(x=factor(paste(Pool_type,Species)),y=N,fill=type),position=position_fill())+
+  coord_flip()+
+  scale_fill_manual(values=feat_cols,limits = force)+
+  facet_wrap(~paste(Cycles,"Cycles"),scales="free_y",ncol = 1)+
+  labs(x="")
+
+```
+
+## Extract count tables (with MultiMapping; primary hit: yes)
+### Get coding Genes for human and mouse
+
+```{r}
+
+ensembl_human <- biomaRt::useMart("ensembl", dataset ="hsapiens_gene_ensembl", host="uswest.ensembl.org") 
+
+biotype_human <- biomaRt::getBM(attributes=c("ensembl_gene_id","ensembl_gene_id_version","gene_biotype","external_gene_name","chromosome_name"),
+                 mart=ensembl_human )%>% 
+  mutate(gene_biotype2=case_when(grepl(gene_biotype,pattern="*pseudogene")~ "pseudogene",
+                            grepl(gene_biotype,pattern="IG*")~ "protein coding",
+                            grepl(gene_biotype,pattern="TR*")~ "protein coding",
+                            grepl(gene_biotype,pattern="MT*")~ "MT",
+                            grepl(gene_biotype,pattern="^s")~ "small RNA",
+                            grepl(gene_biotype,pattern="ribozyme")~ "other",
+                           gene_biotype=="misc_RNA"~ "other",
+                           gene_biotype=="protein_coding"~ "protein coding",
+                           T~gene_biotype),
+         gene_biotype3=case_when(grepl(external_gene_name,pattern="RPS*")~ "ribosomal",
+                                 grepl(external_gene_name,pattern="RPL*")~ "ribosomal",
+                                 grepl(chromosome_name,pattern="MT")~ "mitochondrial",
+                                 grepl(external_gene_name,pattern="rRNA")~ "rRNA",
+                           T~gene_biotype2))
+
+coding_human<-biotype_human %>% 
+  filter(gene_biotype%in% c("protein_coding","lncRNA"))
+###
+ensembl_mouse <- biomaRt::useMart("ensembl", dataset ="mmusculus_gene_ensembl", host="uswest.ensembl.org") 
+
+biotype_mouse <- biomaRt::getBM(attributes=c("ensembl_gene_id","ensembl_gene_id_version","gene_biotype","external_gene_name","chromosome_name"),
+                 mart=ensembl_mouse )
+
+coding_mouse<-biotype_mouse %>% 
+  filter(gene_biotype%in% c("protein_coding","lncRNA"))
+
+coding<-c(coding_human$ensembl_gene_id,coding_mouse$ensembl_gene_id)
+
+
+```
+
+
+```{r}
+
+dge_list<-readRDS(paste0(fig_path, "/CrossCont.dgecounts.rds"))
+
+### UMI counts
+count_type<-c("intron","exon")
+species<-c("human","mouse")
+
+## make function to extract counts
+get_summary_per_Species<-function(dge_list,species,count_type,UMI=T){
+for (i in count_type){
+  for(j in species){
+     if(UMI){
+       mat<- as.matrix(dge_list$umicount[[i]]$downsampling$downsampled_750000) %>% 
+         remove_Geneversion()
+       mat<-mat[whichgenes_reproducible(exprtable = mat,reproducecutoff = 0.25,exprcutoff = 10),]
+       mat<-mat[which(rownames(mat)%in%coding),]
+     }else{
+      mat<- as.matrix(dge_list$readcount[[i]]$downsampling$downsampled_750000) %>% 
+         remove_Geneversion()
+      mat<-mat[whichgenes_reproducible(exprtable = mat,reproducecutoff = 0.25,exprcutoff = 10),]
+      mat<-mat[which(rownames(mat)%in%coding),]
+       }
+if(j=="human"){
+  spec_mat<- mat[grep("ENSG",row.names(mat)),]
+}else {
+  spec_mat<- mat[grep("ENSMUS",row.names(mat)),]
+}
+
+if(!(exists("count_df")))  {
+count_df<- data.frame(BC=colnames(spec_mat),
+                      mapping=j,
+                      count_type=i,
+                      nUMI=colSums(spec_mat),
+                      nGene=colSums(spec_mat>1))
+}else {
+count_df<- rbind(count_df,
+                 data.frame(BC=colnames(spec_mat),
+                            mapping=j,
+                            count_type=i,
+                            nUMI=colSums(spec_mat),
+                            nGene=colSums(spec_mat>1))
+                 )
+}
+  }
+}
+  return(count_df)
+}
+
+df<-get_summary_per_Species(dge_list = dge_list,species = species,UMI=T,count_type = count_type)
+
+count_df_inf<- dplyr::left_join(df, info)
+
+a<-ggplot(data=count_df_inf,aes(y=nUMI,x=factor(Cycles),colour=Species,shape=Pool_type))+
+  ggbeeswarm::geom_beeswarm(alpha = 0.8)+
+  facet_grid(count_type~mapping,scales = "free_y")+
+  scale_colour_aaas()+
+  labs(x="Cycles")
+
+a
+```
+
+### Plot Contamination
+
+```{r}
+
+count_df_inf2<-count_df_inf %>% 
+  group_by(BC) %>% 
+  mutate(nUMI_total=sum(nUMI),
+         nGene_total=sum(nGene)) %>% 
+  pivot_wider(names_from = c("mapping","count_type"),values_from = c("nUMI","nGene")) %>% 
+  mutate(perc_mouse_umi=(nUMI_mouse_exon+nUMI_mouse_intron)/(nUMI_total)*100,
+         perc_mouse_umi_ex=(nUMI_mouse_exon)/(nUMI_mouse_exon)*100,
+         perc_mouse_Gene=(nGene_mouse_exon+nGene_mouse_intron)/(nGene_total)*100,
+         nGene_m=nGene_mouse_exon+nGene_mouse_intron,
+         nGene_h=nGene_human_exon+nGene_human_intron
+         ) %>% 
+  mutate(perc_contamination=if_else(Species=="Human",perc_mouse_umi,100-perc_mouse_umi),
+         perc_contamination_gene=if_else(Species=="Human",perc_mouse_Gene,100-perc_mouse_Gene),
+         nGene_cont=if_else(Species=="Human",nGene_m,nGene_h),
+         nGene_endo=nGene_total-nGene_cont,
+         Pool_type=if_else(Pool_type=="Mix",Pool_type,"individual"),
+         Condition=paste(Species,Pool_type))
+
+
+
+```
+
+## Plot relative Contamination by cycle number
+```{r}
+
+count_df_inf_ex<-count_df_inf %>% 
+  filter(count_type=="exon") %>% 
+  filter(Pool_type=="Mix") %>% 
+  group_by(BC) %>% 
+  mutate(nUMI_total=sum(nUMI),
+         nGene_total=sum(nGene)) %>% 
+  pivot_wider(names_from = c("mapping"),values_from = c("nUMI","nGene")) %>% 
+  mutate(perc_mouse_umi=(nUMI_mouse)/(nUMI_total)*100,
+         perc_mouse_Gene=(nGene_mouse)/(nGene_total)*100,
+         nGene_m=nGene_mouse,
+         nGene_h=nGene_human
+         ) %>% 
+  mutate(perc_contamination=if_else(Species=="Human",perc_mouse_umi,100-perc_mouse_umi),
+         perc_contamination_gene=if_else(Species=="Human",perc_mouse_Gene,100-perc_mouse_Gene),
+         nGene_cont=if_else(Species=="Human",nGene_m,nGene_h),
+         nGene_endo=nGene_total-nGene_cont,
+         Condition=paste(Species,Pool_type))
+
+
+
+rel_cont<-count_df_inf_ex %>% 
+  group_by(BC,Species,Cycles) %>%
+  summarize(perc_contamination=mean(perc_contamination))%>% 
+  group_by(Species) %>% 
+  mutate(delta_perc_contamination=perc_contamination-min(perc_contamination))  
+
+
+p.cont_cycle<-ggplot(subset(rel_cont,Species=="Human"),aes(y=delta_perc_contamination,x=Cycles))+
+  ggbeeswarm::geom_beeswarm(show.legend = F,col="grey70")+
+  stat_summary(show.legend = F,fun="median",width=0.5,geom="crossbar")+
+  geom_smooth(method="lm",show.legend = F,col="grey50")+
+  ylab("Change in Contamination")+
+  xlab("Difference in amplification cycles")+
+  labs(col="")+
+  scale_colour_aaas()+
+  scale_x_continuous(breaks=c(9,11,13,15,17),labels = c("-4","-2","0","+2","+4"))+
+  scale_y_continuous(labels=paste0(c(0,1,2,3,4),"%"))
+
+p.cont_cycle
+
+ggsave(p.cont_cycle,
+       device = "pdf",
+       path = fig_path,
+       width = 130,
+       height=130,
+       units = "mm",
+       filename = "Contamination_cycle.pdf"
+       )
+
+```
+
+
+## `R` Session Info
+
+```{r}
+sessionInfo()
+```

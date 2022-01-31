@@ -171,6 +171,48 @@ plotPCA2<-function(object, intgroup="condition", ntop=numgenes, returnData=FALSE
     coord_fixed()
 }
 
+plotPCA3<-function(object, intgroup="condition", ntop=numgenes, returnData=FALSE)
+{
+  library(matrixStats)
+  # calculate the variance for each gene
+  rv <- rowVars(assay(object))
+  
+  # select the ntop genes by variance
+  select <- order(rv, decreasing=TRUE)[seq_len(min(ntop, length(rv)))]
+  
+  # perform a PCA on the data in assay(x) for the selected genes
+  pca <- prcomp(t(assay(object)[select,]))
+  
+  # the contribution to the total variance for each component
+  percentVar <- pca$sdev^2 / sum( pca$sdev^2 )
+  
+  if (!all(intgroup %in% names(colData(object)))) {
+    stop("the argument 'intgroup' should specify columns of colData(dds)")
+  }
+  
+  intgroup.df <- as.data.frame(colData(object)[, intgroup, drop=FALSE])
+  
+  # add the intgroup factors together to create a new grouping factor
+  group <- if (length(intgroup) > 1) {
+    factor(apply( intgroup.df, 1, paste, collapse=" : "))
+  } else {
+    colData(object)[[intgroup]]
+  }
+  
+  # assembly the data for the plot
+  d <- data.frame(PC1=pca$x[,1], PC2=pca$x[,2], PC3=pca$x[,3],PC4=pca$x[,4],group=group, intgroup.df, name=colnames(object))
+  
+  if (returnData) {
+    d<-list(PCA_df=d, percentVar= percentVar[1:4])
+    return(d)
+  }
+  
+  ggplot(data=d, aes_string(x="PC2", y="PC3", color="group")) + geom_point(size=3) + 
+    xlab(paste0("PC1: ",round(percentVar[1] * 100),"% variance")) +
+    ylab(paste0("PC2: ",round(percentVar[2] * 100),"% variance")) +
+    coord_fixed()
+}
+
 
 ## boxplot of normalized counts to evaluate success of normalisation
 
@@ -454,6 +496,18 @@ collapse_downsampled_counts<-function(zumismat,type,frac.samples,genes,umi){
     dsDF <- data.frame() #initialise output
     for(i in 1:length(zumismat$umicount$exon$downsampling)){
       tmp <- as.matrix(zumismat$umicount$exon$downsampling[[i]])
+      
+      y<-DGEList(counts=tmp,
+                 genes=rownames(tmp))
+      
+      y<-edgeR::calcNormFactors(y)
+      
+      norm<-cpm(y)
+      
+      diversity<-vegan::diversity(x = norm,index = "shannon",MARGIN = 2)
+      
+      scaled_diversity<-diversity/log(colSums(norm>0))
+      
       if (ncol(zumismat$umicount$exon$downsampling[[i]])>1)
         {
         tmp<-tmp[whichgenes_reproducible(tmp,1,reproducecutoff=frac.samples),]
@@ -463,7 +517,9 @@ collapse_downsampled_counts<-function(zumismat,type,frac.samples,genes,umi){
                              UMIs=colSums(tmp),
                              Genes=colSums(tmp>0),
                              XC=colnames(tmp),
-                             stringsAsFactors = F)}
+                             stringsAsFactors = F,
+                             diversity=diversity,
+                             scaled_diversity=scaled_diversity)}
       else 
         {tmp2<-as.matrix(tmp[rownames(tmp)%in%genes,])
       tmp_df <- data.frame(depth=as.integer(str_trim(str_remove(string =names(zumismat$umicount$exon$downsampling)[i],
@@ -471,7 +527,8 @@ collapse_downsampled_counts<-function(zumismat,type,frac.samples,genes,umi){
                            UMIs=sum(tmp2),
                            Genes=sum(tmp2>0),
                            XC=colnames(tmp),
-                           stringsAsFactors = F)} #calculate Genes/UMIs detected
+                           stringsAsFactors = F,
+                           diversity=diversity,scaled_diversity=scaled_diversity)} #calculate Genes/UMIs detected
       dsDF <- rbind.data.frame(dsDF,tmp_df) #collect output
     }
     dsDF$type <-"exon"
@@ -481,6 +538,18 @@ collapse_downsampled_counts<-function(zumismat,type,frac.samples,genes,umi){
     dsDF <- data.frame() #initialise output
     for(i in 1:length(zumismat$umicount$intron$downsampling)){ #for each downsampling depth, get the UMI counts and Gene counts
       tmp <- as.matrix(zumismat$umicount$intron$downsampling[[i]])
+      
+      y<-DGEList(counts=tmp,
+                 genes=rownames(tmp))
+      
+      y<-edgeR::calcNormFactors(y)
+      
+      norm<-cpm(y)
+      
+      diversity<-vegan::diversity(x = norm,index = "shannon",MARGIN = 2)
+      
+      scaled_diversity<-diversity/log(colSums(norm>0))
+      
       if (ncol(zumismat$umicount$exon$downsampling[[i]])>1){##Do filtering only if there's more than one sample/BC left
         tmp<-tmp[whichgenes_reproducible(tmp,1,reproducecutoff=frac.samples),]
         tmp<-tmp[rownames(tmp)%in%genes,]
@@ -489,14 +558,16 @@ collapse_downsampled_counts<-function(zumismat,type,frac.samples,genes,umi){
                              UMIs=colSums(tmp),
                              Genes=colSums(tmp>0),
                              XC=colnames(tmp),
-                             stringsAsFactors = F)}
+                             stringsAsFactors = F,
+                             diversity=diversity,scaled_diversity=scaled_diversity)}
       else{tmp2<-as.matrix(tmp[rownames(tmp)%in%genes,])
       tmp_df <- data.frame(depth=as.integer(str_trim(str_remove(string =names(zumismat$umicount$intron$downsampling)[i],
                                                                 pattern="downsampled_"))),
                            UMIs=sum(tmp2),
                            Genes=sum(tmp2>0),
                            XC=colnames(tmp),
-                           stringsAsFactors = F)}
+                           stringsAsFactors = F,
+                           diversity=diversity,scaled_diversity=scaled_diversity)}
       
       dsDF <- rbind.data.frame(dsDF,tmp_df) #collect output
     }
@@ -504,9 +575,21 @@ collapse_downsampled_counts<-function(zumismat,type,frac.samples,genes,umi){
     return(dsDF)
   }
   else if (type=="inex"){
-    dsDF <- data.frame() #initialise output
+    dsDF <- data.frame() #initialise output 
     for(i in 1:length(zumismat$umicount$inex$downsampling)){ #for each downsampling depth, get the UMI counts and Gene counts
       tmp <- as.matrix(zumismat$umicount$inex$downsampling[[i]])
+      
+      y<-DGEList(counts=tmp,
+                 genes=rownames(tmp))
+      
+      y<-edgeR::calcNormFactors(y)
+      
+      norm<-cpm(y)
+      
+      diversity<-vegan::diversity(x = norm,index = "shannon",MARGIN = 2)
+      
+      scaled_diversity<-diversity/log(colSums(norm>0))
+      
       if (ncol(zumismat$umicount$exon$downsampling[[i]])>1){##Do filtering only if there's more than one sample/BC left
         tmp<-tmp[whichgenes_reproducible(tmp,1,reproducecutoff=frac.samples),]
         tmp<-tmp[rownames(tmp)%in%genes,]
@@ -515,14 +598,16 @@ collapse_downsampled_counts<-function(zumismat,type,frac.samples,genes,umi){
                              UMIs=colSums(tmp),
                              Genes=colSums(tmp>0),
                              XC=colnames(tmp),
-                             stringsAsFactors = F) }
+                             stringsAsFactors = F,
+                             diversity=diversity,scaled_diversity=scaled_diversity) }
         else{tmp2<-as.matrix(tmp[rownames(tmp)%in%genes,])
         tmp_df <- data.frame(depth=as.integer(str_trim(str_remove(string =names(zumismat$umicount$inex$downsampling)[i],
                                                                   pattern="downsampled_"))),
                              UMIs=sum(tmp2),
                              Genes=sum(tmp2>0),
                              XC=colnames(tmp),
-                             stringsAsFactors = F)} 
+                             stringsAsFactors = F,
+                             diversity=diversity,scaled_diversity=scaled_diversity)} 
       dsDF <- rbind.data.frame(dsDF,tmp_df) #collect output
     }
     dsDF$type <-"inex"
@@ -532,6 +617,18 @@ collapse_downsampled_counts<-function(zumismat,type,frac.samples,genes,umi){
     dsDF_ex <- data.frame() #initialise output
     for(i in 1:length(zumismat$umicount$exon$downsampling)){ #for each downsampling depth, get the UMI counts and Gene counts
       tmp <- as.matrix(zumismat$umicount$exon$downsampling[[i]])
+      
+      y<-DGEList(counts=tmp,
+                 genes=rownames(tmp))
+      
+      y<-edgeR::calcNormFactors(y)
+      
+      norm<-cpm(y)
+      
+      diversity<-vegan::diversity(x = norm,index = "shannon",MARGIN = 2)
+      
+      scaled_diversity<-diversity/log(colSums(norm>0))
+      
       if (ncol(zumismat$umicount$exon$downsampling[[i]])>1){##Do filtering only if there's more than one sample/BC left
         tmp<-tmp[whichgenes_reproducible(tmp,1,reproducecutoff=frac.samples),]
         tmp<-tmp[rownames(tmp)%in%genes,]
@@ -540,20 +637,34 @@ collapse_downsampled_counts<-function(zumismat,type,frac.samples,genes,umi){
                              UMIs=colSums(tmp),
                              Genes=colSums(tmp>0),
                              XC=colnames(tmp),
-                             stringsAsFactors = F)}
+                             stringsAsFactors = F,
+                             diversity=diversity,scaled_diversity=scaled_diversity)}
         else{tmp2<-as.matrix(tmp[rownames(tmp)%in%genes,])
         tmp_df <- data.frame(depth=as.integer(str_trim(str_remove(string =names(zumismat$umicount$exon$downsampling)[i],
                                                                   pattern="downsampled_"))),
                              UMIs=sum(tmp2),
                              Genes=sum(tmp2>0),
                              XC=colnames(tmp),
-                             stringsAsFactors = F)}
+                             stringsAsFactors = F,
+                             diversity=diversity,scaled_diversity=scaled_diversity)}
       dsDF_ex <- rbind.data.frame(dsDF_ex,tmp_df) #collect output
     }
     dsDF_ex$type <-"exon"
     dsDF_in <- data.frame() #initialise output
     for(i in 1:length(zumismat$umicount$intron$downsampling)){ #for each downsampling depth, get the UMI counts and Gene counts
       tmp <- as.matrix(zumismat$umicount$intron$downsampling[[i]])
+      
+      y<-DGEList(counts=tmp,
+                 genes=rownames(tmp))
+      
+      y<-edgeR::calcNormFactors(y)
+      
+      norm<-cpm(y)
+      
+      diversity<-vegan::diversity(x = norm,index = "shannon",MARGIN = 2)
+      
+      scaled_diversity<-diversity/log(colSums(norm>0))
+      
       if (ncol(zumismat$umicount$intron$downsampling[[i]])>1){##Do filtering only if there's more than one sample/BC left
         tmp<-tmp[whichgenes_reproducible(tmp,1,reproducecutoff=frac.samples),]
         tmp<-tmp[rownames(tmp)%in%genes,]
@@ -562,20 +673,34 @@ collapse_downsampled_counts<-function(zumismat,type,frac.samples,genes,umi){
                              UMIs=colSums(tmp),
                              Genes=colSums(tmp>0),
                              XC=colnames(tmp),
-                             stringsAsFactors = F) }
+                             stringsAsFactors = F,
+                             diversity=diversity,scaled_diversity=scaled_diversity) }
         else{tmp2<-as.matrix(tmp[rownames(tmp)%in%genes,])
         tmp_df <- data.frame(depth=as.integer(str_trim(str_remove(string =names(zumismat$umicount$intron$downsampling)[i],
                                                                   pattern="downsampled_"))),
                              UMIs=sum(tmp2),
                              Genes=sum(tmp2>0),
                              XC=colnames(tmp),
-                             stringsAsFactors = F)}
+                             stringsAsFactors = F,
+                             diversity=diversity,scaled_diversity=scaled_diversity)}
       dsDF_in <- rbind.data.frame(dsDF_in,tmp_df) #collect output
     } 
     dsDF_in$type <-"intron"
     dsDF_inex <- data.frame() #initialise output
     for(i in 1:length(zumismat$umicount$inex$downsampling)){ #for each downsampling depth, get the UMI counts and Gene counts
       tmp <- as.matrix(zumismat$umicount$inex$downsampling[[i]])
+      
+      y<-DGEList(counts=tmp,
+                 genes=rownames(tmp))
+      
+      y<-edgeR::calcNormFactors(y)
+      
+      norm<-cpm(y)
+      
+      diversity<-vegan::diversity(x = norm,index = "shannon",MARGIN = 2)
+      
+      scaled_diversity<-diversity/log(colSums(norm>0))
+      
       if (ncol(zumismat$umicount$inex$downsampling[[i]])>1){##Do filtering only if there's more than one sample/BC left
         tmp<-tmp[whichgenes_reproducible(tmp,1,reproducecutoff=frac.samples),]
         tmp<-tmp[rownames(tmp)%in%genes,]
@@ -584,14 +709,16 @@ collapse_downsampled_counts<-function(zumismat,type,frac.samples,genes,umi){
                              UMIs=colSums(tmp),
                              Genes=colSums(tmp>0),
                              XC=colnames(tmp),
-                             stringsAsFactors = F) }
+                             stringsAsFactors = F,
+                             diversity=diversity,scaled_diversity=scaled_diversity) }
         else{tmp2<-as.matrix(tmp[rownames(tmp)%in%genes,])
         tmp_df <- data.frame(depth=as.integer(str_trim(str_remove(string =names(zumismat$umicount$inex$downsampling)[i],
                                                                   pattern="downsampled_"))),
                              UMIs=sum(tmp2),
                              Genes=sum(tmp2>0),
                              XC=colnames(tmp),
-                             stringsAsFactors = F)}
+                             stringsAsFactors = F,
+                             diversity=diversity,scaled_diversity=scaled_diversity)}
       dsDF_inex <- rbind.data.frame(dsDF_inex,tmp_df) #collect output
     }
     dsDF_inex$type <-"inex"
@@ -605,6 +732,18 @@ collapse_downsampled_counts<-function(zumismat,type,frac.samples,genes,umi){
     dsDF <- data.frame() #initialise output
     for(i in 1:length(zumismat$readcount$exon$downsampling)){
       tmp <- as.matrix(zumismat$readcount$exon$downsampling[[i]])
+      
+      y<-DGEList(counts=tmp,
+                 genes=rownames(tmp))
+      
+      y<-edgeR::calcNormFactors(y)
+      
+      norm<-cpm(y)
+      
+      diversity<-vegan::diversity(x = norm,index = "shannon",MARGIN = 2)
+      
+      scaled_diversity<-diversity/log(colSums(norm>0))
+      
       if (ncol(zumismat$readcount$exon$downsampling[[i]])>1)
       {
         tmp<-tmp[whichgenes_reproducible(tmp,1,reproducecutoff=frac.samples),]
@@ -614,7 +753,8 @@ collapse_downsampled_counts<-function(zumismat,type,frac.samples,genes,umi){
                              UMIs=colSums(tmp),
                              Genes=colSums(tmp>0),
                              XC=colnames(tmp),
-                             stringsAsFactors = F)}
+                             stringsAsFactors = F,
+                             diversity=diversity,scaled_diversity=scaled_diversity)}
       else 
       {tmp2<-as.matrix(tmp[rownames(tmp)%in%genes,])
       tmp_df <- data.frame(depth=as.integer(str_trim(str_remove(string =names(zumismat$readcount$exon$downsampling)[i],
@@ -622,7 +762,8 @@ collapse_downsampled_counts<-function(zumismat,type,frac.samples,genes,umi){
                            UMIs=sum(tmp2),
                            Genes=sum(tmp2>0),
                            XC=colnames(tmp),
-                           stringsAsFactors = F)} #calculate Genes/UMIs detected
+                           stringsAsFactors = F,
+                           diversity=diversity,scaled_diversity=scaled_diversity)} #calculate Genes/UMIs detected
       dsDF <- rbind.data.frame(dsDF,tmp_df) #collect output
     }
     dsDF$type <-"exon"
@@ -632,6 +773,18 @@ collapse_downsampled_counts<-function(zumismat,type,frac.samples,genes,umi){
     dsDF <- data.frame() #initialise output
     for(i in 1:length(zumismat$readcount$intron$downsampling)){ #for each downsampling depth, get the UMI counts and Gene counts
       tmp <- as.matrix(zumismat$readcount$intron$downsampling[[i]])
+      
+      y<-DGEList(counts=tmp,
+                 genes=rownames(tmp))
+      
+      y<-edgeR::calcNormFactors(y)
+      
+      norm<-cpm(y)
+      
+      diversity<-vegan::diversity(x = norm,index = "shannon",MARGIN = 2)
+      
+      scaled_diversity<-diversity/log(colSums(norm>0))
+      
       if (ncol(zumismat$readcount$exon$downsampling[[i]])>1){##Do filtering only if there's more than one sample/BC left
         tmp<-tmp[whichgenes_reproducible(tmp,1,reproducecutoff=frac.samples),]
         tmp<-tmp[rownames(tmp)%in%genes,]
@@ -640,14 +793,16 @@ collapse_downsampled_counts<-function(zumismat,type,frac.samples,genes,umi){
                              UMIs=colSums(tmp),
                              Genes=colSums(tmp>0),
                              XC=colnames(tmp),
-                             stringsAsFactors = F)}
+                             stringsAsFactors = F,
+                             diversity=diversity,scaled_diversity=scaled_diversity)}
       else{tmp2<-as.matrix(tmp[rownames(tmp)%in%genes,])
       tmp_df <- data.frame(depth=as.integer(str_trim(str_remove(string =names(zumismat$readcount$intron$downsampling)[i],
                                                                 pattern="downsampled_"))),
                            UMIs=sum(tmp2),
                            Genes=sum(tmp2>0),
                            XC=colnames(tmp),
-                           stringsAsFactors = F)}
+                           stringsAsFactors = F,
+                           diversity=diversity,scaled_diversity=scaled_diversity)}
       
       dsDF <- rbind.data.frame(dsDF,tmp_df) #collect output
     }
@@ -658,6 +813,18 @@ collapse_downsampled_counts<-function(zumismat,type,frac.samples,genes,umi){
     dsDF <- data.frame() #initialise output
     for(i in 1:length(zumismat$readcount$inex$downsampling)){ #for each downsampling depth, get the UMI counts and Gene counts
       tmp <- as.matrix(zumismat$readcount$inex$downsampling[[i]])
+      
+      y<-DGEList(counts=tmp,
+                 genes=rownames(tmp))
+      
+      y<-edgeR::calcNormFactors(y)
+      
+      norm<-cpm(y)
+      
+      diversity<-vegan::diversity(x = norm,index = "shannon",MARGIN = 2)
+      
+      scaled_diversity<-diversity/log(colSums(norm>0))
+      
       if (ncol(zumismat$readcount$exon$downsampling[[i]])>1){##Do filtering only if there's more than one sample/BC left
         tmp<-tmp[whichgenes_reproducible(tmp,1,reproducecutoff=frac.samples),]
         tmp<-tmp[rownames(tmp)%in%genes,]
@@ -666,14 +833,16 @@ collapse_downsampled_counts<-function(zumismat,type,frac.samples,genes,umi){
                              UMIs=colSums(tmp),
                              Genes=colSums(tmp>0),
                              XC=colnames(tmp),
-                             stringsAsFactors = F) }
+                             stringsAsFactors = F,
+                             diversity=diversity,scaled_diversity=scaled_diversity) }
       else{tmp2<-as.matrix(tmp[rownames(tmp)%in%genes,])
       tmp_df <- data.frame(depth=as.integer(str_trim(str_remove(string =names(zumismat$readcount$inex$downsampling)[i],
                                                                 pattern="downsampled_"))),
                            UMIs=sum(tmp2),
                            Genes=sum(tmp2>0),
                            XC=colnames(tmp),
-                           stringsAsFactors = F)} 
+                           stringsAsFactors = F,
+                           diversity=diversity,scaled_diversity=scaled_diversity)} 
       dsDF <- rbind.data.frame(dsDF,tmp_df) #collect output
     }
     dsDF$type <-"inex"
@@ -683,6 +852,18 @@ collapse_downsampled_counts<-function(zumismat,type,frac.samples,genes,umi){
     dsDF_ex <- data.frame() #initialise output
     for(i in 1:length(zumismat$readcount$exon$downsampling)){ #for each downsampling depth, get the UMI counts and Gene counts
       tmp <- as.matrix(zumismat$readcount$exon$downsampling[[i]])
+      
+      y<-DGEList(counts=tmp,
+                 genes=rownames(tmp))
+      
+      y<-edgeR::calcNormFactors(y)
+      
+      norm<-cpm(y)
+      
+      diversity<-vegan::diversity(x = norm,index = "shannon",MARGIN = 2)
+      
+      scaled_diversity<-diversity/log(colSums(norm>0))
+      
       if (ncol(zumismat$readcount$exon$downsampling[[i]])>1){##Do filtering only if there's more than one sample/BC left
         tmp<-tmp[whichgenes_reproducible(tmp,1,reproducecutoff=frac.samples),]
         tmp<-tmp[rownames(tmp)%in%genes,]
@@ -691,20 +872,34 @@ collapse_downsampled_counts<-function(zumismat,type,frac.samples,genes,umi){
                              UMIs=colSums(tmp),
                              Genes=colSums(tmp>0),
                              XC=colnames(tmp),
-                             stringsAsFactors = F)}
+                             stringsAsFactors = F,
+                             diversity=diversity,scaled_diversity=scaled_diversity)}
       else{tmp2<-as.matrix(tmp[rownames(tmp)%in%genes,])
       tmp_df <- data.frame(depth=as.integer(str_trim(str_remove(string =names(zumismat$readcount$exon$downsampling)[i],
                                                                 pattern="downsampled_"))),
                            UMIs=sum(tmp2),
                            Genes=sum(tmp2>0),
                            XC=colnames(tmp),
-                           stringsAsFactors = F)}
+                           stringsAsFactors = F,
+                           diversity=diversity,scaled_diversity=scaled_diversity)}
       dsDF_ex <- rbind.data.frame(dsDF_ex,tmp_df) #collect output
     }
     dsDF_ex$type <-"exon"
     dsDF_in <- data.frame() #initialise output
     for(i in 1:length(zumismat$readcount$intron$downsampling)){ #for each downsampling depth, get the UMI counts and Gene counts
       tmp <- as.matrix(zumismat$readcount$intron$downsampling[[i]])
+      
+      y<-DGEList(counts=tmp,
+                 genes=rownames(tmp))
+      
+      y<-edgeR::calcNormFactors(y)
+      
+      norm<-cpm(y)
+      
+      diversity<-vegan::diversity(x = norm,index = "shannon",MARGIN = 2)
+      
+      scaled_diversity<-diversity/log(colSums(norm>0))
+      
       if (ncol(zumismat$readcount$intron$downsampling[[i]])>1){##Do filtering only if there's more than one sample/BC left
         tmp<-tmp[whichgenes_reproducible(tmp,1,reproducecutoff=frac.samples),]
         tmp<-tmp[rownames(tmp)%in%genes,]
@@ -713,20 +908,34 @@ collapse_downsampled_counts<-function(zumismat,type,frac.samples,genes,umi){
                              UMIs=colSums(tmp),
                              Genes=colSums(tmp>0),
                              XC=colnames(tmp),
-                             stringsAsFactors = F) }
+                             stringsAsFactors = F,
+                             diversity=diversity,scaled_diversity=scaled_diversity) }
       else{tmp2<-as.matrix(tmp[rownames(tmp)%in%genes,])
       tmp_df <- data.frame(depth=as.integer(str_trim(str_remove(string =names(zumismat$readcount$intron$downsampling)[i],
                                                                 pattern="downsampled_"))),
                            UMIs=sum(tmp2),
                            Genes=sum(tmp2>0),
                            XC=colnames(tmp),
-                           stringsAsFactors = F)}
+                           stringsAsFactors = F,
+                           diversity=diversity,scaled_diversity=scaled_diversity)}
       dsDF_in <- rbind.data.frame(dsDF_in,tmp_df) #collect output
     } 
     dsDF_in$type <-"intron"
     dsDF_inex <- data.frame() #initialise output
     for(i in 1:length(zumismat$readcount$inex$downsampling)){ #for each downsampling depth, get the UMI counts and Gene counts
       tmp <- as.matrix(zumismat$readcount$inex$downsampling[[i]])
+      
+      y<-DGEList(counts=tmp,
+                 genes=rownames(tmp))
+      
+      y<-edgeR::calcNormFactors(y)
+      
+      norm<-cpm(y)
+      
+      diversity<-vegan::diversity(x = norm,index = "shannon",MARGIN = 2)
+      
+      scaled_diversity<-diversity/log(colSums(norm>0))
+      
       if (ncol(zumismat$readcount$inex$downsampling[[i]])>1){##Do filtering only if there's more than one sample/BC left
         tmp<-tmp[whichgenes_reproducible(tmp,1,reproducecutoff=frac.samples),]
         tmp<-tmp[rownames(tmp)%in%genes,]
@@ -735,14 +944,16 @@ collapse_downsampled_counts<-function(zumismat,type,frac.samples,genes,umi){
                              UMIs=colSums(tmp),
                              Genes=colSums(tmp>0),
                              XC=colnames(tmp),
-                             stringsAsFactors = F) }
+                             stringsAsFactors = F,
+                             diversity=diversity,scaled_diversity=scaled_diversity) }
       else{tmp2<-as.matrix(tmp[rownames(tmp)%in%genes,])
       tmp_df <- data.frame(depth=as.integer(str_trim(str_remove(string =names(zumismat$readcount$inex$downsampling)[i],
                                                                 pattern="downsampled_"))),
                            UMIs=sum(tmp2),
                            Genes=sum(tmp2>0),
                            XC=colnames(tmp),
-                           stringsAsFactors = F)}
+                           stringsAsFactors = F,
+                           diversity=diversity,scaled_diversity=scaled_diversity)}
       dsDF_inex <- rbind.data.frame(dsDF_inex,tmp_df) #collect output
     }
     dsDF_inex$type <-"inex"
@@ -814,3 +1025,22 @@ getEvalDE_list_conditional<-function(evalRes,method=c("prime-seq","tru-seq"),cou
   plot_list$dat.stratified.long<-dat.stratified.long
   return(plot_list)
 }
+
+### Get Mean dispersion plot from PowsimR estparameters
+
+Get_Mean_Disp<- function(estParamRes){
+  ..density.. = NULL
+  
+  plot_list<-list(meanvsdisp.dat=NULL,meanvsdisp.fdat=NULL,cdisp=NULL)
+  plot_list$meanvsdisp.dat <- data.frame(Mean=estParamRes$Fit$Filtered$meandispfit$model$x[,"x"],
+                                         Dispersion=estParamRes$Fit$Filtered$meandispfit$model$y)
+  plot_list$meanvsdisp.fdat <- data.frame(Mean=estParamRes$Fit$Filtered$meandispfit$x,
+                                          Dispersion=estParamRes$Fit$Filtered$meandispfit$y,
+                                          Upper=estParamRes$Fit$Filtered$meandispfit$upper,
+                                          Lower=estParamRes$Fit$Filtered$meandispfit$lower)
+  
+  plot_list$cdisp <- log2(estParamRes$Parameters$Filtered$common.dispersion+1)
+  
+  return(plot_list)
+}
+
