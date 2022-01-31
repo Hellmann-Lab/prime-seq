@@ -102,7 +102,10 @@ expression](3_RNA_isolation/intron_exon_analysis/HEK_intron_exon.md)
 R Notebooks for this analysis can be found
 [here](6_additional_analysis/)
 
-[cross-contamination](6_additional_analysis/prime-seq_rev_CrossCont.md)  
+[cross-contamination
+correlation](6_additional_analysis/prime-seq_rev_CrossCont2.md)  
+[cross-contamination
+cycles](6_additional_analysis/prime-seq_rev_CrossCont.md)  
 [cross-contamination
 simulation](6_additional_analysis/Comp_powsim_contamination.md)
 
