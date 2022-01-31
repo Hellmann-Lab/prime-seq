@@ -3,6 +3,8 @@
 
 # prime-seq
 
+[![DOI](https://zenodo.org/badge/332821121.svg)](https://zenodo.org/badge/latestdoi/332821121)
+
 This repository contains scripts used for the analysis performed in our
 manuscript
 
