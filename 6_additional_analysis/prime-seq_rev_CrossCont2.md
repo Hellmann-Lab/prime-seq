@@ -196,7 +196,7 @@ coding_mouse<-biotype_mouse %>%
 ```
 
 ``` r
-dge_list<-readRDS(paste0(fig_path, "/SM2_nomult.dgecounts.rds"))
+dge_list<-readRDS("/data/share/htp/prime-seq_Paper/Fig_CrossCont/zUMIs/SM2_nomulti/zUMIs_output/expression/SM2_nomult.dgecounts.rds")
 ## add ERCCs to coding genes
 coding<-c(coding_human$ensembl_gene_id,coding_mouse$ensembl_gene_id,grep(rownames(dge_list$umicount$exon$all),
                                                                          pattern = "^ERCC-",
@@ -298,7 +298,8 @@ count_df_inf2<-count_df_inf %>%
          perc_contamination_gene=if_else(Species=="Human",perc_mouse_Gene,100-perc_mouse_Gene),
          nGene_cont=if_else(Species=="Human",nGene_m,nGene_h),
          nGene_endo=nGene_total-nGene_cont) %>% 
-  filter(Species=="Human")
+  filter(Species=="Human") %>% 
+  filter()
 
 
 c<-ggplot(data=count_df_inf2,aes(y=perc_contamination,x=Condition2,colour=Species))+
@@ -322,7 +323,7 @@ mean_nomix<-count_df_inf2 %>%
   group_by(Condition2,Species) %>% 
   summarise(average_cont=mean(perc_contamination))
 
-d<-ggplot(data=subset(count_df_inf2,Species=="Human"),aes(y=perc_contamination,x=Condition2,fill=Condition2,col=Condition2))+
+d<-ggplot(data=count_df_inf2,aes(y=perc_contamination,x=Condition2,fill=Condition2,col=Condition2))+
   geom_hline(data=mean_nomix,aes(yintercept =average_cont),linetype="dashed")+
   geom_boxplot(alpha = 0.8)+
   #geom_errorbar(aes(group=paste(Species,Pool_type),ymin=mean(perc_contamination),ymax=mean(perc_contamination)))+
@@ -361,9 +362,11 @@ count_df_inf2 %>%
 
 ``` r
 
-count_df_inf2 %>% 
-  filter(Condition2%in%c("new_exo","No_mix","NEB_Next")) %>% 
-  ggplot(aes(y=perc_contamination,x=Species,fill=Condition2))+
+condition_final<-count_df_inf2 %>% 
+  filter(Condition2%in%c("new_exo","No_mix")) 
+  
+  
+  ggplot(condition_final,aes(y=perc_contamination,x=Species,fill=Condition2))+
   geom_boxplot(alpha = 0.8)+
   ylab("% Contaminating UMIs")+
   xlab("")+
@@ -371,28 +374,27 @@ count_df_inf2 %>%
   theme(legend.position="bottom",
         axis.text.x = element_blank(),
         axis.ticks.x = element_blank())+
-  scale_fill_aaas(breaks = c("No_mix", "new_exo","NEB_Next"),
-                        labels = c("No Pooling", "Early Pooling (cDNA)","Late Pooling (Library)"))
+  scale_fill_aaas(breaks = c("No_mix", "new_exo"),
+                        labels = c("Individual", "Pooled"))
 ```
 
 ![](prime-seq_rev_CrossCont2_files/figure-gfm/unnamed-chunk-7-4.png)<!-- -->
 
 ``` r
 
-p.cont<-count_df_inf2 %>% 
-  filter(Condition2%in%c("new_exo","No_mix","NEB_Next")) %>% 
-  ggplot(aes(y=perc_contamination,x=Condition2,col=Condition2))+
+p.cont<-  ggplot(condition_final,aes(y=perc_contamination,x=Condition2,col=Condition2))+
   stat_summary(alpha = 0.8,show.legend = F,fun = "median",geom = "crossbar",width=0.5)+
   ggbeeswarm::geom_beeswarm(show.legend=F,col="grey50")+
   ylab("Contaminating UMIs")+
   xlab("")+
   labs(fill="",col="")+
-  scale_x_discrete(breaks = c("No_mix", "new_exo","NEB_Next"),
-                        labels = c("No Pooling", "Early Pooling\n (cDNA)","Late Pooling \n (Library)"))+
-  scale_colour_manual(breaks = c("No_mix", "new_exo","NEB_Next"),
-                        labels = c("No Pooling", "Early Pooling (cDNA)","Late Pooling (Library)"),
+  scale_x_discrete(breaks = c("No_mix", "new_exo"),
+                        labels = c("Individual", "Pooled"))+
+  scale_colour_manual(breaks = c("No_mix", "new_exo"),
+                        labels = c("Individual", "Pooled"),
                       values = c("#82B0D7","#458C77","#6B4E71"))+
-  scale_y_continuous(labels = paste0(c(0.0,0.5,1.0,1.5),"%"))
+  scale_y_continuous(breaks=c(0.0,0.1,0.2,0.3,0.4,0.5),
+                     labels = paste0(c(0.0,0.1,0.2,0.3,0.4,0.5),"%"))
   
 
 p.cont
