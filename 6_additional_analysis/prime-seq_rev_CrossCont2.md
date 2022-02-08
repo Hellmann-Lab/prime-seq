@@ -41,14 +41,7 @@ names(feat_cols)<-c("Ambiguity","Intergenic","Ribosomal","Mitochondrial","lncRNA
 ```
 
 ``` r
-info<-readRDS(paste0(fig_path,"/prime-seq_SM2_info.Rds")) %>% 
-  mutate(Library_Kit=if_else(Library_Kit=="NexteraXT",Library_Kit,"NEB_Next"),
-         Condition2=if_else(Library %in% c(8,9),Library_Kit,Condition),
-         Condition3=paste0(Condition2,Species)) %>% 
-  filter(Condition2!="NexteraXT")
-
-info$Condition2<-factor(info$Condition2,levels = c("No_mix","new_exo","no_exo","old_exo","low_oligo_dT","low_sing_v6","NEB_Next"))
-
+info<-readRDS(paste0(fig_path,"/prime-seq_SM2.Rds")) 
 
 features<-read.table(
   file = paste0(fig_path,"/SM2_nomult.readspercell.txt"),
@@ -83,22 +76,19 @@ ggplot(features)+
 ![](prime-seq_rev_CrossCont2_files/figure-gfm/unnamed-chunk-3-2.png)<!-- -->
 
 ``` r
-# features_mapped<-features %>% 
-#   filter(!(type %in% c("Unmapped")))
 
 ggplot(features)+
   geom_col(aes(x=Condition2,y=N,fill=type),position="fill")+
   coord_flip()+
   scale_fill_manual(values=feat_cols,limits = force)+
   labs(x="")+
-  facet_wrap(~Species,scales="free")
+  facet_wrap(~Species,scales="free",ncol = 1)
 ```
 
 ![](prime-seq_rev_CrossCont2_files/figure-gfm/unnamed-chunk-3-3.png)<!-- -->
 
 ``` r
 features %>% 
-  filter(!(Condition2 %in% c("NEB_Next"))) %>% 
   group_by(Condition2) %>% 
   summarize(Total_per_pool=sum(N),
             Total_empty=sum(N[Species=="Empty"]),
@@ -113,51 +103,6 @@ features %>%
 ```
 
 ![](prime-seq_rev_CrossCont2_files/figure-gfm/unnamed-chunk-3-4.png)<!-- -->
-\#\#\# 2. compare Empty wells to background
-
-``` r
-bcstats <-read_delim(paste0(fig_path,"/SM2_nomult.BCstats.txt"),col_names = c("XC","count")) %>% group_by(XC) %>% 
-  summarize(count=sum(count)) %>% 
-  left_join(info) %>% 
-  mutate(Species=if_else(is.na(Species),"background",Species)) %>% 
-  mutate(rank=rank(-count)) 
-  
-  
-ggplot(bcstats,aes(x=rank,y=count,col=Species))+
-  geom_point(size=1)+
-  geom_point(data=subset(bcstats,Species=="Empty"),aes(x=rank,y=count,col=Species),size=3)+
-  scale_y_log10()+
-  scale_x_log10()+
-  scale_colour_futurama()
-```
-
-![](prime-seq_rev_CrossCont2_files/figure-gfm/unnamed-chunk-4-1.png)<!-- -->
-
-``` r
-  
-bcstats2<-bcstats %>% 
-  filter(rank<5000)
-
-
-ggplot(bcstats2,aes(x=Species,y=count,col=Species))+
-  geom_boxplot()+
-  scale_y_log10()+
-  scale_colour_futurama()
-```
-
-![](prime-seq_rev_CrossCont2_files/figure-gfm/unnamed-chunk-4-2.png)<!-- -->
-
-``` r
-bcstats3<-bcstats %>% 
-  filter(Species %in% c("background","Empty"))
-
-ggplot(bcstats3,aes(x=Species,y=count,col=Species))+
-  geom_boxplot()+
-  scale_y_log10()+
-  scale_colour_futurama()
-```
-
-![](prime-seq_rev_CrossCont2_files/figure-gfm/unnamed-chunk-4-3.png)<!-- -->
 
 ### 3. Extract count tables (with MultiMapping; primary hit: yes)
 
@@ -253,7 +198,7 @@ count_df<- rbind(count_df,
 
 df<-get_summary_per_Species(dge_list = dge_list,species = species,UMI=T,count_type = count_type)
 
-count_df_inf<- dplyr::left_join(df, info,by=c("BC"="XC")) %>% 
+count_df_inf<- dplyr::inner_join(df, info,by=c("BC"="XC")) %>% 
   filter(!(mapping=="ERCC_mapping"&count_type=="intron"))
 
 a<-ggplot(data=count_df_inf,aes(y=nUMI,x=Condition2,colour=Species))+
@@ -265,7 +210,7 @@ a<-ggplot(data=count_df_inf,aes(y=nUMI,x=Condition2,colour=Species))+
 a
 ```
 
-![](prime-seq_rev_CrossCont2_files/figure-gfm/unnamed-chunk-6-1.png)<!-- -->
+![](prime-seq_rev_CrossCont2_files/figure-gfm/unnamed-chunk-5-1.png)<!-- -->
 
 ``` r
 b<-ggplot(data=count_df_inf,aes(y=nUMI,x=Condition2,colour=Species))+
@@ -278,7 +223,7 @@ b<-ggplot(data=count_df_inf,aes(y=nUMI,x=Condition2,colour=Species))+
 b
 ```
 
-![](prime-seq_rev_CrossCont2_files/figure-gfm/unnamed-chunk-6-2.png)<!-- -->
+![](prime-seq_rev_CrossCont2_files/figure-gfm/unnamed-chunk-5-2.png)<!-- -->
 
 ### 4. Plot Contamination
 
@@ -298,13 +243,11 @@ count_df_inf2<-count_df_inf %>%
          perc_contamination_gene=if_else(Species=="Human",perc_mouse_Gene,100-perc_mouse_Gene),
          nGene_cont=if_else(Species=="Human",nGene_m,nGene_h),
          nGene_endo=nGene_total-nGene_cont) %>% 
-  filter(Species=="Human") %>% 
-  filter()
+  filter(Species=="Human")
 
 
-c<-ggplot(data=count_df_inf2,aes(y=perc_contamination,x=Condition2,colour=Species))+
+c<-ggplot(data=count_df_inf2,aes(y=perc_contamination,x=Condition2,colour=Condition2))+
   geom_boxplot(alpha = 0.8,show.legend = F)+
-  #geom_errorbar(aes(group=paste(Species,Pool_type),ymin=mean(perc_contamination),ymax=mean(perc_contamination)))+
   ylab("% Contamination UMIs")+
   xlab("")+
   labs(col="")+
@@ -314,7 +257,7 @@ c<-ggplot(data=count_df_inf2,aes(y=perc_contamination,x=Condition2,colour=Specie
 c
 ```
 
-![](prime-seq_rev_CrossCont2_files/figure-gfm/unnamed-chunk-7-1.png)<!-- -->
+![](prime-seq_rev_CrossCont2_files/figure-gfm/unnamed-chunk-6-1.png)<!-- -->
 
 ``` r
 
@@ -326,7 +269,6 @@ mean_nomix<-count_df_inf2 %>%
 d<-ggplot(data=count_df_inf2,aes(y=perc_contamination,x=Condition2,fill=Condition2,col=Condition2))+
   geom_hline(data=mean_nomix,aes(yintercept =average_cont),linetype="dashed")+
   geom_boxplot(alpha = 0.8)+
-  #geom_errorbar(aes(group=paste(Species,Pool_type),ymin=mean(perc_contamination),ymax=mean(perc_contamination)))+
   ylab("% Contamination UMIs")+
   xlab("")+
   labs(fill="",col="")+
@@ -339,50 +281,10 @@ d<-ggplot(data=count_df_inf2,aes(y=perc_contamination,x=Condition2,fill=Conditio
 d
 ```
 
-![](prime-seq_rev_CrossCont2_files/figure-gfm/unnamed-chunk-7-2.png)<!-- -->
+![](prime-seq_rev_CrossCont2_files/figure-gfm/unnamed-chunk-6-2.png)<!-- -->
 
 ``` r
-
-count_df_inf2 %>% 
-  filter(Condition2%in%c("old_exo","No_mix","low_oligo_dT","low_sing_v6")) %>% 
-  ggplot(aes(y=perc_contamination,x=Condition2,fill=Condition2,col=Condition2))+
-  geom_hline(data=mean_nomix,aes(yintercept =average_cont),linetype="dashed")+
-  geom_boxplot(alpha = 0.8)+
-  ylab("% Contamination UMIs")+
-  xlab("")+
-  labs(fill="",col="")+
-  scale_fill_aaas()+
-  scale_colour_aaas()+
-  theme(axis.text.x = element_blank(),
-        axis.ticks.x = element_blank(),
-  legend.position="bottom")
-```
-
-![](prime-seq_rev_CrossCont2_files/figure-gfm/unnamed-chunk-7-3.png)<!-- -->
-
-``` r
-
-condition_final<-count_df_inf2 %>% 
-  filter(Condition2%in%c("new_exo","No_mix")) 
-  
-  
-  ggplot(condition_final,aes(y=perc_contamination,x=Species,fill=Condition2))+
-  geom_boxplot(alpha = 0.8)+
-  ylab("% Contaminating UMIs")+
-  xlab("")+
-  labs(fill="",col="")+
-  theme(legend.position="bottom",
-        axis.text.x = element_blank(),
-        axis.ticks.x = element_blank())+
-  scale_fill_aaas(breaks = c("No_mix", "new_exo"),
-                        labels = c("Individual", "Pooled"))
-```
-
-![](prime-seq_rev_CrossCont2_files/figure-gfm/unnamed-chunk-7-4.png)<!-- -->
-
-``` r
-
-p.cont<-  ggplot(condition_final,aes(y=perc_contamination,x=Condition2,col=Condition2))+
+p.cont<-  ggplot(count_df_inf2,aes(y=perc_contamination,x=Condition2,col=Condition2))+
   stat_summary(alpha = 0.8,show.legend = F,fun = "median",geom = "crossbar",width=0.5)+
   ggbeeswarm::geom_beeswarm(show.legend=F,col="grey50")+
   ylab("Contaminating UMIs")+
@@ -400,7 +302,7 @@ p.cont<-  ggplot(condition_final,aes(y=perc_contamination,x=Condition2,col=Condi
 p.cont
 ```
 
-![](prime-seq_rev_CrossCont2_files/figure-gfm/unnamed-chunk-7-5.png)<!-- -->
+![](prime-seq_rev_CrossCont2_files/figure-gfm/unnamed-chunk-6-3.png)<!-- -->
 
 ### 5. Gene wise contamination
 
@@ -483,7 +385,7 @@ p.cont_cor<-ggplot(raw_counts_per_type2)+
 p.cont_cor
 ```
 
-![](prime-seq_rev_CrossCont2_files/figure-gfm/unnamed-chunk-9-1.png)<!-- -->
+![](prime-seq_rev_CrossCont2_files/figure-gfm/unnamed-chunk-8-1.png)<!-- -->
 
 ``` r
 
@@ -500,7 +402,7 @@ facet_grid(~Genome,scales="free")
 p.cont.smooth
 ```
 
-![](prime-seq_rev_CrossCont2_files/figure-gfm/unnamed-chunk-9-2.png)<!-- -->
+![](prime-seq_rev_CrossCont2_files/figure-gfm/unnamed-chunk-8-2.png)<!-- -->
 
 ``` r
 p.cont_dens<-ggplot(raw_counts_per_type2)+
@@ -512,7 +414,7 @@ p.cont_dens<-ggplot(raw_counts_per_type2)+
 p.cont_dens
 ```
 
-![](prime-seq_rev_CrossCont2_files/figure-gfm/unnamed-chunk-9-3.png)<!-- -->
+![](prime-seq_rev_CrossCont2_files/figure-gfm/unnamed-chunk-8-3.png)<!-- -->
 
 ``` r
 raw_counts_per_type3<-raw_counts_per_type2 %>% 
@@ -525,15 +427,10 @@ raw_counts_per_type3<-raw_counts_per_type2 %>%
 
 
 table(raw_counts_per_type3$Condition2,raw_counts_per_type3$expression_bin)
-#>               
-#>                   1    2    3    4    5    6    7    8    9   10
-#>   No_mix          0    0    0    0    0    0    0    0    0    0
-#>   new_exo      1832 2359 1326 1563 1840 1712 1675 1726 1748 1737
-#>   no_exo       1810 2390 1388 1556 1815 1703 1675 1718 1709 1739
-#>   old_exo      2240 1810 1496 1767 1559 1673 1720 1712 1743 1739
-#>   low_oligo_dT 2368 1797 1578 1249 1798 1728 1765 1719 1739 1735
-#>   low_sing_v6  1894 1694 2139 1642 1526 1828 1610 1733 1727 1735
-#>   NEB_Next     2125 1550 1774 1643 1864 1687 1684 1736 1745 1744
+#>          
+#>              1    2    3    4    5    6    7    8    9   10
+#>   No_mix     0    0    0    0    0    0    0    0    0    0
+#>   new_exo 1832 2359 1326 1563 1840 1712 1675 1726 1748 1737
 
 p.cont_box<-ggplot(raw_counts_per_type3)+
   geom_boxplot(aes(x=Condition2,y=cont_ratio_per_gene,colour=Genome),alpha=0.5)+
@@ -543,7 +440,7 @@ p.cont_box<-ggplot(raw_counts_per_type3)+
 p.cont_box
 ```
 
-![](prime-seq_rev_CrossCont2_files/figure-gfm/unnamed-chunk-9-4.png)<!-- -->
+![](prime-seq_rev_CrossCont2_files/figure-gfm/unnamed-chunk-8-4.png)<!-- -->
 
 ``` r
 
@@ -557,7 +454,7 @@ p.cont_box2<-ggplot(raw_counts_per_type3)+
 p.cont_box2
 ```
 
-![](prime-seq_rev_CrossCont2_files/figure-gfm/unnamed-chunk-9-5.png)<!-- -->
+![](prime-seq_rev_CrossCont2_files/figure-gfm/unnamed-chunk-8-5.png)<!-- -->
 
 ``` r
 p.ex_bin<-ggplot(raw_counts_per_type3)+
@@ -569,13 +466,13 @@ p.ex_bin<-ggplot(raw_counts_per_type3)+
 p.ex_bin
 ```
 
-![](prime-seq_rev_CrossCont2_files/figure-gfm/unnamed-chunk-9-6.png)<!-- -->
+![](prime-seq_rev_CrossCont2_files/figure-gfm/unnamed-chunk-8-6.png)<!-- -->
 
 ``` r
 plot_grid(p.cont_box2,p.ex_bin,ncol=1,axis="lr",align="hv",rel_heights = c(1,0.75))
 ```
 
-![](prime-seq_rev_CrossCont2_files/figure-gfm/unnamed-chunk-9-7.png)<!-- -->
+![](prime-seq_rev_CrossCont2_files/figure-gfm/unnamed-chunk-8-7.png)<!-- -->
 
 ``` r
 p.cont_exp_all<-ggplot(raw_counts_per_type3)+
@@ -588,7 +485,7 @@ p.cont_exp_all<-ggplot(raw_counts_per_type3)+
 p.cont_exp_all
 ```
 
-![](prime-seq_rev_CrossCont2_files/figure-gfm/unnamed-chunk-9-8.png)<!-- -->
+![](prime-seq_rev_CrossCont2_files/figure-gfm/unnamed-chunk-8-8.png)<!-- -->
 
 ### 6. Correlation of expression and contamination
 
@@ -618,7 +515,7 @@ p.cont_cor<-ggplot(raw_counts_per_type_h,aes(endo,cont))+
 p.cont_cor
 ```
 
-![](prime-seq_rev_CrossCont2_files/figure-gfm/unnamed-chunk-10-1.png)<!-- -->
+![](prime-seq_rev_CrossCont2_files/figure-gfm/unnamed-chunk-9-1.png)<!-- -->
 
 ### 7. Export data
 
@@ -688,21 +585,21 @@ sessionInfo()
 #> [40] dbplyr_2.1.1           fastmap_1.1.0          highr_0.9             
 #> [43] rlang_0.4.12           rstudioapi_0.13        RSQLite_2.2.8         
 #> [46] farver_2.1.0           generics_0.1.1         jsonlite_1.7.2        
-#> [49] vroom_1.5.6            RCurl_1.98-1.5         magrittr_2.0.1        
-#> [52] GenomeInfoDbData_1.2.6 ggbeeswarm_0.6.0       Rcpp_1.0.7            
-#> [55] munsell_0.5.0          S4Vectors_0.30.2       fansi_0.5.0           
-#> [58] lifecycle_1.0.1        stringi_1.7.4          yaml_2.2.1            
-#> [61] zlibbioc_1.38.0        BiocFileCache_2.0.0    grid_4.1.0            
-#> [64] blob_1.2.2             parallel_4.1.0         crayon_1.4.2          
-#> [67] lattice_0.20-45        splines_4.1.0          Biostrings_2.60.2     
-#> [70] haven_2.4.3            hms_1.1.1              KEGGREST_1.32.0       
-#> [73] knitr_1.36             pillar_1.6.4           biomaRt_2.48.3        
-#> [76] stats4_4.1.0           reprex_2.0.1           XML_3.99-0.8          
-#> [79] glue_1.5.0             evaluate_0.14          modelr_0.1.8          
-#> [82] vctrs_0.3.8            png_0.1-7              tzdb_0.2.0            
-#> [85] cellranger_1.1.0       gtable_0.3.0           assertthat_0.2.1      
-#> [88] cachem_1.0.6           xfun_0.28              broom_0.7.10          
-#> [91] ragg_1.2.0             ggpointdensity_0.1.0   beeswarm_0.4.0        
-#> [94] AnnotationDbi_1.54.1   memoise_2.0.1          IRanges_2.26.0        
-#> [97] ellipsis_0.3.2         here_1.0.1
+#> [49] RCurl_1.98-1.5         magrittr_2.0.1         GenomeInfoDbData_1.2.6
+#> [52] ggbeeswarm_0.6.0       Rcpp_1.0.7             munsell_0.5.0         
+#> [55] S4Vectors_0.30.2       fansi_0.5.0            lifecycle_1.0.1       
+#> [58] stringi_1.7.4          yaml_2.2.1             zlibbioc_1.38.0       
+#> [61] BiocFileCache_2.0.0    grid_4.1.0             blob_1.2.2            
+#> [64] parallel_4.1.0         crayon_1.4.2           lattice_0.20-45       
+#> [67] splines_4.1.0          Biostrings_2.60.2      haven_2.4.3           
+#> [70] hms_1.1.1              KEGGREST_1.32.0        knitr_1.36            
+#> [73] pillar_1.6.4           biomaRt_2.48.3         stats4_4.1.0          
+#> [76] reprex_2.0.1           XML_3.99-0.8           glue_1.5.0            
+#> [79] evaluate_0.14          modelr_0.1.8           vctrs_0.3.8           
+#> [82] png_0.1-7              tzdb_0.2.0             cellranger_1.1.0      
+#> [85] gtable_0.3.0           assertthat_0.2.1       cachem_1.0.6          
+#> [88] xfun_0.28              broom_0.7.10           ragg_1.2.0            
+#> [91] ggpointdensity_0.1.0   beeswarm_0.4.0         AnnotationDbi_1.54.1  
+#> [94] memoise_2.0.1          IRanges_2.26.0         ellipsis_0.3.2        
+#> [97] here_1.0.1
 ```
