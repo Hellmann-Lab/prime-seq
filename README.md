@@ -16,7 +16,7 @@ Vick, Ines Hellmann, Wolfgang Enard
 
 For the full prime-seq protocol please visit
 [protocols.io](https://www.protocols.io/view/prime-seq-s9veh66).
-**For the full list of 384 barcoded oligo dT primers click [here](prime-seq_E3V7_All_Barcode)**
+**For the full list of 384 barcoded oligo dT primers click [here](prime-seq_E3V7_All_Barcode.txt)**
 
 # <img src="Fig1.png" align="center" width="1000" />
 
